@@ -47,6 +47,7 @@ public static class User32
     public static readonly IntPtr HWND_TOPMOST = new(-1);
     public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
 
     [DllImport("user32.dll")]
@@ -78,16 +79,34 @@ public static class User32
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromRect(ref RECT lprc, uint dwFlags);
+
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+    public const uint MONITOR_DEFAULTTONULL = 0;
+    public const uint MONITOR_DEFAULTTOPRIMARY = 1;
     public const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    /// <summary>A monitor's DPI (MDT_EFFECTIVE_DPI = 0). 96 = 100%.</summary>
+    [DllImport("shcore.dll")]
+    public static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {
         public int Left, Top, Right, Bottom;
+
+        public RECT(int left, int top, int right, int bottom)
+        {
+            Left = left; Top = top; Right = right; Bottom = bottom;
+        }
+
+        public int Width => Right - Left;
+        public int Height => Bottom - Top;
+        public override string ToString() => $"({Left},{Top})-({Right},{Bottom})";
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]

@@ -1,9 +1,12 @@
-# Checks SmoothAnnotate's touch, palm and exit paths WITHOUT hands: drives the RUNNING
-# app through its control pipe, with simulated finger strokes (InjectTouchInput), a
+# Checks SmoothDraw's touch, palm, exit, undo and key paths WITHOUT hands: drives the
+# RUNNING app through its control pipe, with simulated finger strokes (InjectTouchInput), a
 # simulated pen (CreateSyntheticPointerDevice) and simulated keys, then looks at the
-# screen for red ink. It takes over the screen for ~30 s, so tell Omri before running it.
+# screen for red ink. It takes over the screen for ~40 s, so tell Omri before running it.
 #
-#   powershell -ExecutionPolicy Bypass -File tools\touch-test.ps1 [-Steps finger,palm,laser,esc,toolbar]
+#   powershell -ExecutionPolicy Bypass -File tools\touch-test.ps1 [-Steps finger,palm,laser,esc,toolbar,undo,keys]
+#
+# The ink colour is set to red for the run (the app remembers its colour in pen.json) and
+# put back afterwards, as is the clipboard the keys step borrows.
 #
 # Quirks it works around (CLAUDE.md -> "Testing touch without hands"):
 # - WPF doesn't see the injected-touch device or the synthetic pen until its device list
@@ -13,11 +16,12 @@
 #   every measured stroke.
 # - Long, fast, diagonal injected strokes were sometimes lost before reaching WPF. Short
 #   horizontal ones never were, so all strokes here are short and horizontal.
-param([string]$Steps = 'finger,palm,laser,esc,toolbar')
+param([string]$Steps = 'finger,palm,laser,esc,toolbar,undo,keys')
 
 $ErrorActionPreference = 'Stop'
 $StepList = @($Steps -split ',' | ForEach-Object { $_.Trim() })   # a list; $Steps is typed [string]
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 
@@ -65,6 +69,7 @@ public static class Inj {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string title);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
     const uint DOWN = 0x10000, UPDATE = 0x20000, UP = 0x40000, INRANGE = 0x2, INCONTACT = 0x4, NEW = 0x1;
@@ -143,6 +148,24 @@ public static class Inj {
         Thread.Sleep(30);
         keybd_event(vk, 0, 2, UIntPtr.Zero);
     }
+
+    // Ctrl + a key (Ctrl+Z, Ctrl+4 ...)
+    public static void CtrlKey(byte vk) {
+        keybd_event(0xA2, 0, 0, UIntPtr.Zero);
+        Thread.Sleep(30);
+        Key(vk);
+        Thread.Sleep(30);
+        keybd_event(0xA2, 0, 2, UIntPtr.Zero);
+    }
+
+    // Windows lets a program bring its window to the front only in some cases; Alt held
+    // down while it asks is one of them (the old Alt trick)
+    public static bool ToFront(IntPtr h) {
+        keybd_event(0x12, 0, 0, UIntPtr.Zero);
+        bool ok = SetForegroundWindow(h);
+        keybd_event(0x12, 0, 2, UIntPtr.Zero);
+        return ok;
+    }
 }
 '@
 
@@ -150,7 +173,7 @@ public static class Inj {
 $SW = [Inj]::GetSystemMetrics(0); $SH = [Inj]::GetSystemMetrics(1)
 
 function Pipe([string]$cmd) {
-    $p = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'SmoothAnnotate.control', [System.IO.Pipes.PipeDirection]::InOut)
+    $p = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'SmoothDraw.control', [System.IO.Pipes.PipeDirection]::InOut)
     try {
         $p.Connect(2000)
         $sw = New-Object System.IO.StreamWriter($p); $sw.AutoFlush = $true
@@ -208,9 +231,19 @@ function Stroke {
     return ((RedPixels $px ($py - 40) 200 80) -gt $before + 10)
 }
 
+# Red ink at a spot now, against a count taken on a cleared canvas
+function RedAt($spot) { RedPixels $spot[0] ($spot[1] - 40) 200 80 }
+function HasRed($spot, [int]$baseline) { (RedAt $spot) -gt $baseline + 10 }
+
+# Lets the key step's test window handle its messages while the script waits
+function Pump([int]$ms) {
+    $end = (Get-Date).AddMilliseconds($ms)
+    while ((Get-Date) -lt $end) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 15 }
+}
+
 # "touch ignored" lines in the app's log: tells a palm the app rejected from one that never
 # reached it (dropped by the injection, or by Windows' own touch-off-while-pen-is-near)
-$log = Join-Path $env:LOCALAPPDATA 'SmoothAnnotate\debug.log'
+$log = Join-Path $env:LOCALAPPDATA 'SmoothDraw\debug.log'
 function IgnoredCount { @(Select-String -Path $log -Pattern 'touch ignored' -ErrorAction SilentlyContinue).Count }
 
 $penX = [int]($SW * 0.5); $penY = [int]($SH * 0.8)
@@ -221,9 +254,13 @@ function Result([string]$name, [bool]$ok, [string]$detail) {
     $script:results += "{0,-9} {1}  {2}" -f $name, $(if ($ok) { 'PASS' } else { 'FAIL' }), $detail
 }
 
+# The colour the app had before the run, put back at the end
+$startColor = (Pipe 'status').color
+
 try {
     "screen ${SW}x${SH}; remote: $(if ($remote) { "$($remote.Left),$($remote.Top)-$($remote.Right),$($remote.Bottom)" } else { 'not open' })"
     [void](Pipe 'clear')
+    [void](Pipe 'color 1')   # red, whatever was remembered: the checks count red pixels
     [void](DrawOn)
 
     # Warm-up (see the top of the file). The pen was just "near", so wait out the 1 s grace.
@@ -279,9 +316,10 @@ try {
         $s = DrawOn
         [void][Inj]::SetCursorPos([int]($SW / 2), [int]($SH * 0.8))   # mouse far away: no hover help
         Start-Sleep -Milliseconds 300
-        $tb = [Inj]::FindWindow([NullString]::Value, 'SmoothAnnotate Toolbar')
+        $tb = [Inj]::FindWindow([NullString]::Value, 'SmoothDraw Toolbar')
+        # By its AutomationId, not its tooltip: the tooltip's words change, the id doesn't
         $cond = New-Object System.Windows.Automation.PropertyCondition(
-            [System.Windows.Automation.AutomationElement]::HelpTextProperty, 'Mouse (Esc)')
+            [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'BtnMouse')
         $btn = [System.Windows.Automation.AutomationElement]::FromHandle($tb).FindFirst(
             [System.Windows.Automation.TreeScope]::Descendants, $cond)
         if ($null -eq $btn) { Result 'toolbar' $false 'toolbar Mouse button not found' }
@@ -293,9 +331,75 @@ try {
             Result 'toolbar' ($s.drawing -and -not $t.drawing) "finger tap on the toolbar's Mouse button -> drawing=$($t.drawing)"
         }
     }
+
+    if ($StepList -contains 'undo') {
+        # Draw, undo, redo, clear + undo, erase + undo: each judged by red pixels at one spot
+        [void](DrawOn)
+        $spot = NextSpot; $px = $spot[0]; $py = $spot[1]
+        [void](Pipe 'clear'); Start-Sleep -Milliseconds 150
+        $base = RedAt $spot
+        [Inj]::Drag($px + 10, $py, $px + 180, $py, 12); Start-Sleep -Milliseconds 350
+        $drew = HasRed $spot $base
+        $u = Pipe 'undo'; Start-Sleep -Milliseconds 250
+        $gone = -not (HasRed $spot $base)
+        Result 'undo' ($drew -and $gone) "stroke drew: $drew; after undo no ink: $gone (undo steps left: $($u.undo))"
+        $r = Pipe 'redo'; Start-Sleep -Milliseconds 250
+        Result 'redo' (HasRed $spot $base) "after redo the ink is back (redo steps left: $($r.redo))"
+        [void](Pipe 'clear'); Start-Sleep -Milliseconds 250
+        $cleared = -not (HasRed $spot $base)
+        [void](Pipe 'undo'); Start-Sleep -Milliseconds 250
+        Result 'clear-undo' ($cleared -and (HasRed $spot $base)) "clear took the ink: $cleared; undo brought it back"
+        # The eraser: Ctrl+4 (while drawing), a finger drag along the stroke, then undo
+        [Inj]::CtrlKey(0x34); Start-Sleep -Milliseconds 300
+        $tool = (Pipe 'status').tool
+        [Inj]::Drag($px + 10, $py, $px + 180, $py, 12); Start-Sleep -Milliseconds 350
+        $erased = -not (HasRed $spot $base)
+        [void](Pipe 'undo'); Start-Sleep -Milliseconds 250
+        Result 'erase-undo' ($tool -eq 'Eraser' -and $erased -and (HasRed $spot $base)) "Ctrl+4 -> $tool; the drag erased: $erased; undo brought it back"
+    }
+
+    if ($StepList -contains 'keys') {
+        # While drawing, SmoothDraw's keys must not reach the program underneath: Ctrl+Z
+        # would undo there too, Ctrl+V paste there, F11 go full screen. A test window of
+        # this script holds the keyboard (not Notepad: Windows 11's keeps what was typed
+        # in it across restarts); its text must not change.
+        $clipText = $null; $clipImage = $null
+        if ([System.Windows.Forms.Clipboard]::ContainsText()) { $clipText = [System.Windows.Forms.Clipboard]::GetText() }
+        elseif ([System.Windows.Forms.Clipboard]::ContainsImage()) { $clipImage = [System.Windows.Forms.Clipboard]::GetImage() }
+        $form = New-Object System.Windows.Forms.Form
+        $form.Text = 'SmoothDraw key test'; $form.TopMost = $true; $form.StartPosition = 'Manual'
+        $form.Left = [int]($SW * 0.70); $form.Top = [int]($SH * 0.12); $form.Width = 360; $form.Height = 120
+        $box = New-Object System.Windows.Forms.TextBox
+        $box.Multiline = $true; $box.Dock = 'Fill'
+        $form.Controls.Add($box)
+        try {
+            [void](Pipe 'draw off')
+            $form.Show(); Pump 400
+            $front = [Inj]::ToFront($form.Handle); [void]$box.Focus(); Pump 300
+            foreach ($vk in 0x41, 0x42, 0x43) { [Inj]::Key($vk); Pump 60 }   # any keyboard layout: compared with itself
+            Pump 200
+            $typed = $box.Text
+            [System.Windows.Forms.Clipboard]::SetText('LEAK')
+            [void](Pipe 'draw toggle'); Pump 400
+            [Inj]::CtrlKey(0x56); Pump 250   # Ctrl+V
+            [Inj]::CtrlKey(0x5A); Pump 250   # Ctrl+Z
+            [Inj]::CtrlKey(0x59); Pump 250   # Ctrl+Y
+            [Inj]::Key(0x7A); Pump 250       # F11: laser on
+            [Inj]::Key(0x7A); Pump 250       # F11: back to the mouse
+            $after = $box.Text
+            $state = Pipe 'status'
+            $ok = $typed.Length -eq 3 -and $after -eq $typed -and -not $state.drawing
+            Result 'keys' $ok "window in front: $front; typed '$typed', after Ctrl+V/Z/Y and F11 twice while drawing: '$after'; drawing after F11 x2: $($state.drawing)"
+        } finally {
+            $form.Close(); $form.Dispose()
+            if ($null -ne $clipText) { [System.Windows.Forms.Clipboard]::SetText($clipText) }
+            elseif ($null -ne $clipImage) { [System.Windows.Forms.Clipboard]::SetImage($clipImage) }
+            else { [System.Windows.Forms.Clipboard]::Clear() }
+        }
+    }
 } finally {
     [Inj]::PenDestroy()
-    try { [void](Pipe 'clear'); [void](Pipe 'draw off') } catch {}
+    try { [void](Pipe 'clear'); [void](Pipe 'draw off'); [void](Pipe "color $startColor") } catch {}
     [void][Inj]::SetCursorPos([int]($SW / 2), [int]($SH / 2))
     ''
     $results

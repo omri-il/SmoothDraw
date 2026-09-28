@@ -12,6 +12,10 @@ public class KeyboardHookService : IDisposable
 
     private bool _ctrlPressed;
     private bool _altPressed;
+    private bool _shiftPressed;
+
+    private const uint VK_ESCAPE = 0x1B, VK_F8 = 0x77, VK_F10 = 0x79, VK_F11 = 0x7A, VK_F12 = 0x7B;
+    private const uint VK_V = 0x56, VK_Y = 0x59, VK_Z = 0x5A;
 
     // Core tools
     public event Action? DrawModeToggled;
@@ -35,15 +39,27 @@ public class KeyboardHookService : IDisposable
     // Clipboard paste
     public event Action? ClipboardPaste;
 
+    // Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z)
+    public event Action? UndoRequested;
+    public event Action? RedoRequested;
+
     // Esc: answers true when it used the key (stopped drawing). The key is then kept from
     // the app underneath — there Esc would also end a PowerPoint slideshow, say.
     public event Func<bool>? EscapePressed;
-    private bool _swallowEscapeUp;
 
     // Whether you are drawing right now. Every key but F8 acts only while you are: in other
     // programs they are ordinary keys (Ctrl+1 switches browser tabs, Ctrl+V pastes, F11 is
     // full screen), and caught everywhere they kept switching drawing on by itself.
     public Func<bool>? IsDrawing { get; set; }
+
+    // Whether a text box on the overlay is being typed in. It has the keyboard then, so
+    // nothing is kept from it, and Ctrl+Z / Ctrl+Y / Ctrl+V are its own (undo typing, paste).
+    public Func<bool>? IsTyping { get; set; }
+
+    // A key whose key-down was kept from the other programs gets its key-up kept too, or
+    // the program underneath would see a key released that it never saw pressed. Only the
+    // key itself: Ctrl / Shift / Alt always go through, both ways.
+    private readonly HashSet<uint> _swallowUp = new();
 
     public KeyboardHookService()
     {
@@ -66,15 +82,19 @@ public class KeyboardHookService : IDisposable
         App.Log($"Keyboard hook installed OK. Handle: {_kbHookId}");
     }
 
+    // Runs on the UI thread, inside Windows' hook call: it only decides and raises events.
+    // The work itself is queued by the handlers (App: Dispatcher.BeginInvoke), because a
+    // hook that takes too long is skipped, or removed, by Windows.
     private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode >= 0)
         {
             var kbd = Marshal.PtrToStructure<User32.KBDLLHOOKSTRUCT>(lParam);
             bool isKeyDown = wParam == User32.WM_KEYDOWN || wParam == User32.WM_SYSKEYDOWN;
+            uint vk = kbd.vkCode;
 
             // Track modifier state
-            switch (kbd.vkCode)
+            switch (vk)
             {
                 case 0xA2 or 0xA3: // VK_LCONTROL / VK_RCONTROL
                     _ctrlPressed = isKeyDown;
@@ -82,105 +102,98 @@ public class KeyboardHookService : IDisposable
                 case 0xA4 or 0xA5: // VK_LMENU / VK_RMENU (Alt)
                     _altPressed = isKeyDown;
                     break;
+                case 0xA0 or 0xA1: // VK_LSHIFT / VK_RSHIFT
+                    _shiftPressed = isKeyDown;
+                    break;
             }
 
-            if (kbd.vkCode == 0x1B) // VK_ESCAPE - plain Esc only (Ctrl+Alt+Esc is SmoothZoom's)
+            if (!isKeyDown)
             {
-                if (isKeyDown && !_ctrlPressed && !_altPressed && EscapePressed?.Invoke() == true)
+                if (_swallowUp.Remove(vk)) return (IntPtr)1;
+            }
+            else if (vk == VK_ESCAPE)
+            {
+                // Plain Esc only (Ctrl+Alt+Esc is SmoothZoom's)
+                if (!_ctrlPressed && !_altPressed && EscapePressed?.Invoke() == true)
                 {
-                    _swallowEscapeUp = true;
-                    return (IntPtr)1;
-                }
-                if (!isKeyDown && _swallowEscapeUp)
-                {
-                    _swallowEscapeUp = false;
+                    _swallowUp.Add(vk);
                     return (IntPtr)1;
                 }
             }
-
-            if (isKeyDown && kbd.vkCode == 0x77) // F8 - Toggle draw mode, from anywhere (F9 is OBS zoom-to-mouse)
+            else if (vk == VK_F8) // Toggle draw mode, from anywhere (F9 is OBS zoom-to-mouse)
             {
                 App.Log("F8 pressed -> DrawModeToggled");
                 DrawModeToggled?.Invoke();
             }
-            else if (isKeyDown && IsDrawing?.Invoke() == true)
+            else if (IsDrawing?.Invoke() == true && DrawingKey(vk) is { } key)
             {
-                // F-key hotkeys (no modifiers needed - simple and reliable)
-                switch (kbd.vkCode)
+                bool typing = IsTyping?.Invoke() == true;
+                if (!(typing && key.TextBoxKey)) key.Act();
+                if (!typing)
                 {
-                    case 0x79: // F10 - Clear canvas
-                        App.Log("F10 pressed -> ClearInk");
-                        ClearInk?.Invoke();
-                        break;
-                    case 0x7A: // F11 - Laser pointer
-                        App.Log("F11 pressed -> LaserToggled");
-                        LaserToggled?.Invoke();
-                        break;
-                    case 0x7B: // F12 - Timer start/pause
-                        App.Log("F12 pressed -> TimerToggled");
-                        TimerToggled?.Invoke();
-                        break;
-                }
-
-                // Ctrl+number shortcuts for tools (Ctrl only, no Alt)
-                if (_ctrlPressed && !_altPressed)
-                {
-                    switch (kbd.vkCode)
-                    {
-                        case 0x31: ToolShortcut?.Invoke(1); break; // Ctrl+1 = Pen
-                        case 0x32: ToolShortcut?.Invoke(2); break; // Ctrl+2 = Highlighter
-                        case 0x33: ToolShortcut?.Invoke(3); break; // Ctrl+3 = Laser
-                        case 0x34: ToolShortcut?.Invoke(4); break; // Ctrl+4 = Eraser
-                        case 0x35: ToolShortcut?.Invoke(5); break; // Ctrl+5 = Arrow
-                        case 0x36: ToolShortcut?.Invoke(6); break; // Ctrl+6 = Rectangle
-                        case 0x37: ToolShortcut?.Invoke(7); break; // Ctrl+7 = Circle
-                        case 0x38: ToolShortcut?.Invoke(8); break; // Ctrl+8 = Text
-                        case 0x30: ToolShortcut?.Invoke(0); break; // Ctrl+0 = Mouse/Pointer
-                        case 0x56: ClipboardPaste?.Invoke(); break; // Ctrl+V = Paste image
-                    }
-                }
-
-                // Ctrl+Alt hotkeys for less frequent tools
-                if (_ctrlPressed && _altPressed)
-                {
-                    switch (kbd.vkCode)
-                    {
-                        case 0x54: // Ctrl+Alt+T - Timer visibility
-                            TimerVisibilityToggled?.Invoke();
-                            break;
-                        case 0x41: // Ctrl+Alt+A - Arrow
-                            ArrowToggled?.Invoke();
-                            break;
-                        case 0x52: // Ctrl+Alt+R - Rectangle
-                            RectangleToggled?.Invoke();
-                            break;
-                        case 0x4F: // Ctrl+Alt+O - Circle (Oval)
-                            CircleToggled?.Invoke();
-                            break;
-                        case 0x58: // Ctrl+Alt+X - Text
-                            TextToggled?.Invoke();
-                            break;
-                        case 0x31: // Ctrl+Alt+1 - Red
-                            ColorChanged?.Invoke(1);
-                            break;
-                        case 0x32: // Ctrl+Alt+2 - Blue
-                            ColorChanged?.Invoke(2);
-                            break;
-                        case 0x33: // Ctrl+Alt+3 - Green
-                            ColorChanged?.Invoke(3);
-                            break;
-                        case 0x34: // Ctrl+Alt+4 - White
-                            ColorChanged?.Invoke(4);
-                            break;
-                        case 0x35: // Ctrl+Alt+5 - Yellow
-                            ColorChanged?.Invoke(5);
-                            break;
-                    }
+                    // Used here, so kept from the program underneath: F11 would also go
+                    // full screen in a browser, Ctrl+Z would undo there too
+                    _swallowUp.Add(vk);
+                    return (IntPtr)1;
                 }
             }
         }
 
         return User32.CallNextHookEx(_kbHookId, nCode, wParam, lParam);
+    }
+
+    /// <summary>What a key does while drawing, or null when it is not one of ours.
+    /// textBoxKey: typing in a text box, the key is the text box's (undo typing, paste).</summary>
+    private (Action Act, bool TextBoxKey)? DrawingKey(uint vk)
+    {
+        // F-key hotkeys (no modifiers needed - simple and reliable)
+        switch (vk)
+        {
+            case VK_F10:
+                return (() => { App.Log("F10 pressed -> ClearInk"); ClearInk?.Invoke(); }, false);
+            case VK_F11:
+                return (() => { App.Log("F11 pressed -> LaserToggled"); LaserToggled?.Invoke(); }, false);
+            case VK_F12:
+                return (() => { App.Log("F12 pressed -> TimerToggled"); TimerToggled?.Invoke(); }, false);
+        }
+
+        // Ctrl+number shortcuts for tools, Ctrl+V, undo/redo (Ctrl only, never Alt:
+        // Ctrl+Alt+Z is SmoothZoom's)
+        if (_ctrlPressed && !_altPressed)
+        {
+            if (vk is >= 0x30 and <= 0x38) // Ctrl+0 = mouse, Ctrl+1-8 = Pen … Text
+            {
+                int num = (int)(vk - 0x30);
+                return (() => ToolShortcut?.Invoke(num), false);
+            }
+            switch (vk)
+            {
+                case VK_V: return (() => ClipboardPaste?.Invoke(), true);
+                case VK_Z when _shiftPressed: return (() => RedoRequested?.Invoke(), true);
+                case VK_Z: return (() => UndoRequested?.Invoke(), true);
+                case VK_Y: return (() => RedoRequested?.Invoke(), true);
+            }
+        }
+
+        // Ctrl+Alt hotkeys for less frequent tools
+        if (_ctrlPressed && _altPressed)
+        {
+            switch (vk)
+            {
+                case 0x54: return (() => TimerVisibilityToggled?.Invoke(), false); // Ctrl+Alt+T
+                case 0x41: return (() => ArrowToggled?.Invoke(), false);           // Ctrl+Alt+A
+                case 0x52: return (() => RectangleToggled?.Invoke(), false);       // Ctrl+Alt+R
+                case 0x4F: return (() => CircleToggled?.Invoke(), false);          // Ctrl+Alt+O (Oval)
+                case 0x58: return (() => TextToggled?.Invoke(), false);            // Ctrl+Alt+X
+            }
+            if (vk is >= 0x31 and <= 0x35) // Ctrl+Alt+1-5: Red, Blue, Green, White, Yellow
+            {
+                int color = (int)(vk - 0x30);
+                return (() => ColorChanged?.Invoke(color), false);
+            }
+        }
+
+        return null;
     }
 
     public void Dispose()

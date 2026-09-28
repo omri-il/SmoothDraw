@@ -51,24 +51,22 @@ public partial class OverlayWindow : Window
     private Point _dragStartPoint;
     private Point _dragLastPoint;
 
-    // Arrow pairs: Line ↔ Polygon (arrowhead) — move both together
+    // Arrow pairs: Line ↔ Polygon (arrowhead) — move both together. Never emptied, not
+    // even by Clear: an arrow brought back by undo must still move as one piece.
     private readonly Dictionary<UIElement, UIElement> _arrowPairs = new();
+
+    // Undo / redo (Services/DrawingHistory.cs)
+    private readonly DrawingHistory _history = new();
+    // Selected ink's points before a move or resize, until it has happened
+    private List<(Stroke Stroke, StylusPointCollection Before)>? _transformBefore;
 
     // Text tool state
     private TextBox? _activeTextBox;
-    private double _textSize = 32; // Medium default
-    private static readonly double[] TextSizes = { 24, 32, 48, 72 }; // Small, Medium, Large, XL
-    private int _textSizeIndex = 1; // Start at Medium
 
-    // Color palette
-    private static readonly Color[] Palette = new[]
-    {
-        Color.FromRgb(255, 0, 0),     // 1: Red
-        Color.FromRgb(50, 120, 255),   // 2: Blue
-        Color.FromRgb(0, 200, 80),     // 3: Green
-        Color.FromRgb(255, 255, 255),  // 4: White
-        Color.FromRgb(255, 230, 0)     // 5: Yellow
-    };
+    // Colour, thickness and text size — what you picked last, remembered in pen.json
+    private readonly PenState _pen;
+    private double TextSize => PenState.TextSizes[_pen.TextSize];
+    private double PenWidth => _settings.PenSize * PenState.ThicknessScale[_pen.Thickness];
 
     public OverlayWindow() : this(new AnnotationSettings()) { }
 
@@ -78,9 +76,18 @@ public partial class OverlayWindow : Window
         _settings = settings;
         ((Grid)Content).Children.Insert(0, _hitLayer);
         SizeChanged += (_, _) => UpdateHitLayer();
-        _currentColor = (Color)ColorConverter.ConvertFromString(_settings.PenColor);
+        _pen = PenStateService.Load(settings);
+        _currentColor = InkPalette.Get(_pen.Color);
 
         DrawCanvas.StrokeCollected += OnStrokeCollected;
+        DrawCanvas.StrokeErasing += OnStrokeErasing;
+        DrawCanvas.SelectionMoving += (_, _) => RememberSelectionPoints();
+        DrawCanvas.SelectionResizing += (_, _) => RememberSelectionPoints();
+        DrawCanvas.SelectionMoved += (_, _) => RecordSelectionTransform();
+        DrawCanvas.SelectionResized += (_, _) => RecordSelectionTransform();
+        // An eraser drag is one undo step: it ends when the canvas lets go of the mouse or pen
+        DrawCanvas.AddHandler(Mouse.LostMouseCaptureEvent, new System.Windows.Input.MouseEventHandler((_, _) => _history.FlushGroup()), true);
+        DrawCanvas.AddHandler(Stylus.LostStylusCaptureEvent, new StylusEventHandler((_, _) => _history.FlushGroup()), true);
         DrawCanvas.IgnoreTouchNearPen = _settings.IgnoreTouchNearPen;
         // A finger draws here, so no press-and-hold right-click ring, no flick gestures
         // (a quick stroke would turn into "back"), no tap circles in the recording
@@ -105,13 +112,16 @@ public partial class OverlayWindow : Window
         _toolbar.ToolSelected += OnToolbarToolSelected;
         _toolbar.ColorSelected += SetColor;
         _toolbar.ClearRequested += ClearAllStrokes;
-        _toolbar.TextSizeCycled += () =>
-        {
-            CycleTextSize();
-            string[] labels = { "Small", "Medium", "Large", "XL" };
-            _toolbar?.UpdateTextSizeLabel(labels[_textSizeIndex]);
-        };
+        _toolbar.TextSizeCycled += CycleTextSize;
+        _toolbar.ThicknessCycled += CycleThickness;
+        _toolbar.UndoRequested += () => Undo();
+        _toolbar.RedoRequested += () => Redo();
         _toolbar.ConfettiRequested += TriggerConfetti;
+        // It starts on what you picked last
+        _toolbar.SetActiveColor(_pen.Color);
+        _toolbar.SetThickness(_pen.Thickness);
+        _toolbar.SetTextSize(_pen.TextSize);
+        _history.Changed += () => _toolbar?.SetUndoRedo(_history.UndoCount > 0, _history.RedoCount > 0);
         // ✕ stops drawing, exactly like the toolbar's mouse button. It used to quit the
         // whole app, which left the OBS remote's drawing buttons grey (twice on the laptop,
         // 2026-09-27). Quitting is the tray icon's "Quit".
@@ -254,6 +264,7 @@ public partial class OverlayWindow : Window
         Canvas.SetLeft(img, left);
         Canvas.SetTop(img, top);
         ShapeCanvas.Children.Add(img);
+        _history.Push(new ElementsAdded(ShapeCanvas.Children, new() { (img, ShapeCanvas.Children.IndexOf(img)) }));
 
         ShowModeIndicator("IMAGE PASTED");
     }
@@ -343,8 +354,10 @@ public partial class OverlayWindow : Window
 
     public void SetColor(int index)
     {
-        if (index < 1 || index > Palette.Length) return;
-        _currentColor = Palette[index - 1];
+        if (index < 1 || index > InkPalette.Colors.Length) return;
+        _currentColor = InkPalette.Get(index);
+        _pen.Color = index;
+        PenStateService.Save(_pen);
         _toolbar?.SetActiveColor(index);
 
         // Update current tool's drawing attributes and cursor
@@ -358,8 +371,7 @@ public partial class OverlayWindow : Window
         // Keep laser fade color in sync
         _laserService?.SetBaseColor(_currentColor);
 
-        string[] names = { "RED", "BLUE", "GREEN", "WHITE", "YELLOW" };
-        ShowModeIndicator(names[index - 1]);
+        ShowModeIndicator(InkPalette.Names[index - 1].ToUpper());
     }
 
     // --- Timer Controls ---
@@ -380,15 +392,100 @@ public partial class OverlayWindow : Window
 
     // --- Clear ---
 
+    /// <summary>Toolbar, F10, pipe. Undoable: one step brings everything back (not the
+    /// laser, which was fading anyway). Nothing to clear = nothing recorded.</summary>
     public void ClearAllStrokes()
     {
-        DrawCanvas.Strokes.Clear();
-        ShapeCanvas.Children.Clear();
-        _arrowPairs.Clear();
-        _laserService?.ClearTracking();
+        // A text being typed is finished properly first: removed with the rest, it used to
+        // stay "active" and keep the mouse
+        CommitActiveTextBox();
+        // A shape or a drag under way is dropped
+        if (_isDrawingShape && _shapePreview != null) ShapeCanvas.Children.Remove(_shapePreview);
         _shapePreview = null;
         _isDrawingShape = false;
+        _draggedElement = null;
+        if (ShapeCanvas.IsMouseCaptured) ShapeCanvas.ReleaseMouseCapture();
+        ClearInkSelection();
+        _history.FlushGroup();
+
+        var strokes = DrawCanvas.Strokes;
+        var ink = strokes.Select((stroke, i) => (stroke, i))
+            .Where(x => _laserService?.IsLaserStroke(x.stroke) != true).ToList();
+        var shapes = ShapeCanvas.Children.Cast<UIElement>().Select((element, i) => (element, i)).ToList();
+        strokes.Clear();
+        ShapeCanvas.Children.Clear();
+        _laserService?.ClearTracking();
+        if (ink.Count + shapes.Count > 0)
+            _history.Push(new Cleared(strokes, ink, ShapeCanvas.Children, shapes));
         ShowModeIndicator("CLEARED");
+    }
+
+    // --- Undo / redo (toolbar, Ctrl+Z / Ctrl+Y, pipe) ---
+
+    public int UndoCount => _history.UndoCount;
+    public int RedoCount => _history.RedoCount;
+
+    public bool Undo() => StepHistory(undo: true);
+    public bool Redo() => StepHistory(undo: false);
+
+    private bool StepHistory(bool undo)
+    {
+        string what = undo ? "UNDO" : "REDO";
+        // Mid-gesture (a stroke, a shape or a drag under way) its step isn't there yet
+        if (_isDrawingShape || _draggedElement != null || Mouse.Captured != null || Stylus.Captured != null)
+        {
+            App.Log($"{what} ignored: in the middle of a stroke, shape or drag");
+            return false;
+        }
+        // From the toolbar or the pipe (the keys leave a text box its own Ctrl+Z)
+        CommitActiveTextBox();
+        // A selection would go on pointing at strokes that are no longer there
+        ClearInkSelection();
+        bool done;
+        try
+        {
+            done = undo ? _history.Undo() : _history.Redo();
+        }
+        catch (Exception ex)
+        {
+            App.Log($"{what} FAILED: {ex}");
+            return false;
+        }
+        ShowModeIndicator(done ? what : $"NOTHING TO {what}");
+        return done;
+    }
+
+    private void ClearInkSelection()
+    {
+        if (DrawCanvas.GetSelectedStrokes().Count > 0) DrawCanvas.Select(new StrokeCollection());
+    }
+
+    // --- Recording what changes (the other steps are recorded where they happen) ---
+
+    /// <summary>The eraser (and the pen's eraser end) takes strokes one by one; a whole drag
+    /// is one undo step. Laser strokes are left alone: they fade by themselves.</summary>
+    private void OnStrokeErasing(object? sender, InkCanvasStrokeErasingEventArgs e)
+    {
+        if (_laserService?.IsLaserStroke(e.Stroke) == true)
+        {
+            e.Cancel = true;
+            return;
+        }
+        int index = DrawCanvas.Strokes.IndexOf(e.Stroke);
+        if (index >= 0) _history.AddToGroup(new InkRemoved(DrawCanvas.Strokes, e.Stroke, index));
+    }
+
+    private void RememberSelectionPoints() =>
+        _transformBefore = DrawCanvas.GetSelectedStrokes().Select(s => (s, s.StylusPoints.Clone())).ToList();
+
+    private void RecordSelectionTransform()
+    {
+        var before = _transformBefore;
+        _transformBefore = null;
+        if (before is not { Count: > 0 }) return;
+        var items = before.Where(b => DrawCanvas.Strokes.Contains(b.Stroke))
+            .Select(b => (b.Stroke, b.Before, After: b.Stroke.StylusPoints.Clone())).ToList();
+        if (items.Count > 0) _history.Push(new InkTransformed(items));
     }
 
     // --- Hit layer (see _hitLayer) ---
@@ -417,12 +514,11 @@ public partial class OverlayWindow : Window
     /// <summary>The toolbar's area in this window's coordinates, or null while it's hidden.</summary>
     private Rect? ToolbarRect()
     {
-        if (_toolbar is not { IsVisible: true }
-            || PresentationSource.FromVisual(_toolbar) == null || PresentationSource.FromVisual(this) == null)
+        // What you see of it (the bar or the dot), not its shadow room
+        if (_toolbar is not { IsVisible: true } || PresentationSource.FromVisual(this) == null
+            || _toolbar.VisibleScreenRect() is not Rect r)
             return null;
-        var topLeft = PointFromScreen(_toolbar.PointToScreen(new Point(0, 0)));
-        var bottomRight = PointFromScreen(_toolbar.PointToScreen(new Point(_toolbar.ActualWidth, _toolbar.ActualHeight)));
-        return new Rect(topLeft, bottomRight);
+        return new Rect(PointFromScreen(r.TopLeft), PointFromScreen(r.BottomRight));
     }
 
     // --- Internal Helpers ---
@@ -451,6 +547,16 @@ public partial class OverlayWindow : Window
 
     public AnnotationTool CurrentTool => _currentTool;
     public bool IsDrawMode => _isDrawMode;
+    /// <summary>A text box is being typed in (it has the keyboard: KeyboardHookService.IsTyping).</summary>
+    public bool IsTyping => _activeTextBox != null;
+    public int ColorIndex => _pen.Color;
+    public int ThicknessIndex => _pen.Thickness;
+
+    /// <summary>The pipe's "dot X Y": a new home for the dot (tests).</summary>
+    public string MoveDotHome(int x, int y) => _toolbar?.MoveDotHome(x, y).ToString() ?? "";
+
+    /// <summary>The pipe's "snapshot": PNGs of the toolbar, which no screenshot can show.</summary>
+    public List<string> RenderToolbarSnapshots(string dir) => _toolbar?.RenderSnapshots(dir) ?? new List<string>();
 
     /// <summary>Drawing on (pen) or off — a plain switch, unlike F8's cycle. From the
     /// laser it goes to the pen: the laser has its own switch (F11).</summary>
@@ -526,7 +632,7 @@ public partial class OverlayWindow : Window
         var hwnd = PassThroughWindow();
         if (hwnd == IntPtr.Zero || !Native.User32.IsWindowVisible(hwnd) || Native.User32.IsIconic(hwnd))
             return false;
-        // Both sides are physical pixels: this app is per-monitor DPI aware
+        // Both sides are Win32 pixels of this process (GetCursorPos and GetWindowRect agree)
         return Native.User32.GetWindowRect(hwnd, out var r)
                && pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom;
     }
@@ -584,6 +690,7 @@ public partial class OverlayWindow : Window
     {
         // Clean up previous tool state
         CommitActiveTextBox();
+        _history.FlushGroup();
 
         _currentTool = tool;
         _toolbar?.SetActiveTool(tool);
@@ -630,14 +737,14 @@ public partial class OverlayWindow : Window
                     DrawCanvas.DefaultDrawingAttributes = new DrawingAttributes
                     {
                         Color = _currentColor,
-                        Width = _settings.PenSize,
-                        Height = _settings.PenSize,
+                        Width = PenWidth,
+                        Height = PenWidth,
                         FitToCurve = true,
                         StylusTip = StylusTip.Ellipse,
                         IgnorePressure = false
                     };
                     DrawCanvas.UseCustomCursor = true;
-                    DrawCanvas.Cursor = CreateCircleCursor(_currentColor, _settings.PenSize);
+                    DrawCanvas.Cursor = CreateCircleCursor(_currentColor, PenWidth);
                     _laserService?.Stop();
                     break;
 
@@ -693,9 +800,15 @@ public partial class OverlayWindow : Window
     {
         if (_currentTool == AnnotationTool.Laser)
         {
-            _laserService?.RegisterStroke(e.Stroke);
+            _laserService?.RegisterStroke(e.Stroke); // never undoable: it fades
+            return;
         }
-        else if (_currentTool == AnnotationTool.Pen)
+
+        var strokes = DrawCanvas.Strokes;
+        int idx = strokes.IndexOf(e.Stroke);
+        if (idx < 0) return;
+        var added = new List<(Stroke Stroke, int Index)>();
+        if (_currentTool == AnnotationTool.Pen)
         {
             // Add subtle shadow under pen strokes for a polished look
             var shadowAttrs = new DrawingAttributes
@@ -708,11 +821,16 @@ public partial class OverlayWindow : Window
                 IgnorePressure = true
             };
             var shadow = new System.Windows.Ink.Stroke(e.Stroke.StylusPoints.Clone(), shadowAttrs);
-
-            int idx = DrawCanvas.Strokes.IndexOf(e.Stroke);
-            if (idx >= 0)
-                DrawCanvas.Strokes.Insert(idx, shadow);
+            strokes.Insert(idx, shadow);
+            // One undo step: the stroke and its shadow
+            added.Add((shadow, idx));
+            added.Add((e.Stroke, idx + 1));
         }
+        else
+        {
+            added.Add((e.Stroke, idx)); // the highlighter
+        }
+        _history.Push(new InkAdded(strokes, added));
     }
 
     // --- Shape Drawing (Arrow, Rectangle, Circle) ---
@@ -785,7 +903,7 @@ public partial class OverlayWindow : Window
             AnnotationTool.Arrow => new Line
             {
                 Stroke = brush,
-                StrokeThickness = _settings.PenSize,
+                StrokeThickness = PenWidth,
                 X1 = _shapeStartPoint.X,
                 Y1 = _shapeStartPoint.Y,
                 X2 = _shapeStartPoint.X,
@@ -797,7 +915,7 @@ public partial class OverlayWindow : Window
             AnnotationTool.Rectangle => new System.Windows.Shapes.Rectangle
             {
                 Stroke = brush,
-                StrokeThickness = _settings.PenSize,
+                StrokeThickness = PenWidth,
                 Fill = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), // Near-transparent but hittable
                 RadiusX = 4,
                 RadiusY = 4,
@@ -806,7 +924,7 @@ public partial class OverlayWindow : Window
             AnnotationTool.Circle => new Ellipse
             {
                 Stroke = brush,
-                StrokeThickness = _settings.PenSize,
+                StrokeThickness = PenWidth,
                 Fill = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), // Near-transparent but hittable
                 Effect = CreateShapeShadow()
             },
@@ -862,11 +980,19 @@ public partial class OverlayWindow : Window
 
     private void OnShapeMouseUp(object sender, MouseButtonEventArgs e)
     {
-        // End dragging in Select mode
+        // End dragging in Select mode: one undo step, the whole way from where it started
         if (_draggedElement != null)
         {
+            var moved = _draggedElement;
             _draggedElement = null;
             ShapeCanvas.ReleaseMouseCapture();
+            double dx = _dragLastPoint.X - _dragStartPoint.X, dy = _dragLastPoint.Y - _dragStartPoint.Y;
+            if (Math.Abs(dx) + Math.Abs(dy) > 0.5)
+            {
+                var elements = new List<UIElement> { moved };
+                if (_arrowPairs.TryGetValue(moved, out var partner)) elements.Add(partner);
+                _history.Push(new ElementsMoved(elements, dx, dy, MoveElement));
+            }
             return;
         }
 
@@ -875,13 +1001,30 @@ public partial class OverlayWindow : Window
         _isDrawingShape = false;
         ShapeCanvas.ReleaseMouseCapture();
 
-        // Finalize arrow: add arrowhead polygon
-        if (_shapePreview is Line line)
+        var shape = _shapePreview;
+        _shapePreview = null;
+        if (shape == null) return;
+
+        // A click rather than a shape: nothing to keep, nothing to undo
+        if (ShapeExtent(shape) < 3)
         {
-            AddArrowHead(line);
+            ShapeCanvas.Children.Remove(shape);
+            return;
         }
 
-        _shapePreview = null;
+        var added = new List<(UIElement Element, int Index)> { (shape, ShapeCanvas.Children.IndexOf(shape)) };
+        // Finalize arrow: add arrowhead polygon
+        if (shape is Line line && AddArrowHead(line) is { } head)
+            added.Add((head, ShapeCanvas.Children.IndexOf(head)));
+        _history.Push(new ElementsAdded(ShapeCanvas.Children, added));
+    }
+
+    /// <summary>How far a shape reaches: a line's length, a box's larger side.</summary>
+    private static double ShapeExtent(Shape shape)
+    {
+        if (shape is Line l) return Math.Sqrt((l.X2 - l.X1) * (l.X2 - l.X1) + (l.Y2 - l.Y1) * (l.Y2 - l.Y1));
+        double w = double.IsNaN(shape.Width) ? 0 : shape.Width, h = double.IsNaN(shape.Height) ? 0 : shape.Height;
+        return Math.Max(w, h);
     }
 
     private static void UpdateRectShape(Shape shape, Point start, Point current)
@@ -897,12 +1040,12 @@ public partial class OverlayWindow : Window
         shape.Height = Math.Max(h, 1);
     }
 
-    private void AddArrowHead(Line line)
+    private Polygon? AddArrowHead(Line line)
     {
         double dx = line.X2 - line.X1;
         double dy = line.Y2 - line.Y1;
         double length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 5) return;
+        if (length < 5) return null;
 
         // Large prominent arrowhead (0.35 rad ≈ 20° spread, scaled to arrow length)
         double headSize = Math.Max(30, Math.Min(length * 0.35, 50));
@@ -929,6 +1072,7 @@ public partial class OverlayWindow : Window
         // Register bidirectional pair so Select tool moves both together
         _arrowPairs[line] = arrowHead;
         _arrowPairs[arrowHead] = line;
+        return arrowHead;
     }
 
     private static void MoveElement(UIElement el, double dx, double dy)
@@ -1028,7 +1172,7 @@ public partial class OverlayWindow : Window
 
         _activeTextBox = new TextBox
         {
-            FontSize = _textSize,
+            FontSize = TextSize,
             FontFamily = new FontFamily("Segoe UI"),
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(_currentColor),
@@ -1067,6 +1211,7 @@ public partial class OverlayWindow : Window
         double left = Canvas.GetLeft(_activeTextBox);
         double top = Canvas.GetTop(_activeTextBox);
         var color = (_activeTextBox.Foreground as SolidColorBrush)?.Color ?? _currentColor;
+        double fontSize = _activeTextBox.FontSize;
 
         ShapeCanvas.Children.Remove(_activeTextBox);
 
@@ -1078,7 +1223,7 @@ public partial class OverlayWindow : Window
             var textBlock = new TextBlock
             {
                 Text = text,
-                FontSize = _textSize,
+                FontSize = fontSize,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(color),
@@ -1097,6 +1242,8 @@ public partial class OverlayWindow : Window
             Canvas.SetLeft(textBlock, left);
             Canvas.SetTop(textBlock, top);
             ShapeCanvas.Children.Add(textBlock);
+            _history.Push(new ElementsAdded(ShapeCanvas.Children,
+                new() { (textBlock, ShapeCanvas.Children.IndexOf(textBlock)) }));
         }
 
         _activeTextBox = null;
@@ -1138,10 +1285,28 @@ public partial class OverlayWindow : Window
 
     public void CycleTextSize()
     {
-        _textSizeIndex = (_textSizeIndex + 1) % TextSizes.Length;
-        _textSize = TextSizes[_textSizeIndex];
-        string[] labels = { "SMALL", "MEDIUM", "LARGE", "XL" };
-        ShowModeIndicator($"TEXT {labels[_textSizeIndex]}");
+        _pen.TextSize = (_pen.TextSize + 1) % PenState.TextSizes.Length;
+        PenStateService.Save(_pen);
+        _toolbar?.SetTextSize(_pen.TextSize);
+        if (_activeTextBox != null) _activeTextBox.FontSize = TextSize; // the text being typed too
+        ShowModeIndicator($"TEXT {PenState.TextSizeNames[_pen.TextSize].ToUpper()}");
+    }
+
+    // --- Thickness (pen, arrow, rectangle, circle): Thin / Medium / Thick ---
+
+    public void CycleThickness()
+    {
+        _pen.Thickness = (_pen.Thickness + 1) % PenState.ThicknessScale.Length;
+        PenStateService.Save(_pen);
+        _toolbar?.SetThickness(_pen.Thickness);
+        if (_currentTool == AnnotationTool.Pen)
+        {
+            var attrs = DrawCanvas.DefaultDrawingAttributes.Clone();
+            attrs.Width = attrs.Height = PenWidth;
+            DrawCanvas.DefaultDrawingAttributes = attrs;
+            DrawCanvas.Cursor = CreateCircleCursor(_currentColor, PenWidth);
+        }
+        ShowModeIndicator(PenState.ThicknessNames[_pen.Thickness].ToUpper());
     }
 
     // --- Custom Cursor ---

@@ -1,10 +1,10 @@
-"""Draws the two app icons into assets/*.ico (run once; the .ico files are committed).
+"""Draws the app icon into assets/smoothdraw.ico (run once; the .ico is committed).
 
-SmoothZoom     = the yellow cursor ring it draws, on a dark tile.
-SmoothAnnotate = a white pen on a red tile.
+SmoothDraw = a white pencil on a red tile. (SmoothZoom's ring icon is drawn by the same
+kind of script in the smoothzoom repo; the two were one script until 2026-09-28.)
 
-Each .ico holds 16-256 px sizes, every size drawn at 4x and downsampled, so the
-16 px tray / Start-menu icon stays crisp. Needs Pillow:  py deploy/make_icons.py
+The .ico holds 16-256 px sizes, every size drawn at 4x and downsampled, so the 16 px
+tray / Start-menu icon stays crisp. Needs Pillow:  py deploy/make_icons.py
 """
 from pathlib import Path
 
@@ -21,17 +21,6 @@ def tile(size, colour):
     s = size * SS
     d.rounded_rectangle([0, 0, s - 1, s - 1], radius=s * 7 // 32, fill=colour)
     return img, d, s
-
-
-def ring(size):
-    img, d, s = tile(size, (30, 30, 46, 255))
-    w = max(s * 3 // 32, SS * 2)  # stroke never thinner than 2 px at 16 px
-    pad = s * 6 // 32
-    # ImageDraw replaces pixels rather than blending, so the faint fill is pre-mixed
-    # (24% yellow over the tile) instead of drawn translucent — that would punch a hole
-    d.ellipse([pad, pad, s - pad, s - pad], fill=(84, 78, 47, 255),
-              outline=(255, 230, 50, 255), width=w)
-    return img.resize((size, size), Image.LANCZOS)
 
 
 def pen(size):
@@ -66,5 +55,4 @@ def save(draw, name):
 
 
 if __name__ == "__main__":
-    save(ring, "smoothzoom.ico")
-    save(pen, "smoothannotate.ico")
+    save(pen, "smoothdraw.ico")

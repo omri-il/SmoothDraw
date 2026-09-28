@@ -2,5 +2,26 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnExplicitShutdown">
-    <Application.Resources/>
+    <Application.Resources>
+        <!-- The toolbar's tooltips: light, like the bar. They open at opacity 0 and fade in
+             only once their window is hidden from screen capture (App.OnToolTipOpened), so
+             no recording ever catches a frame of one. -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="HasDropShadow" Value="False"/>
+            <Setter Property="Foreground" Value="#3B3B46"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="White" BorderBrush="#D6D6E0" BorderThickness="1"
+                                CornerRadius="6" Padding="8,4">
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
 </Application>

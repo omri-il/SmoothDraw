@@ -41,6 +41,10 @@ public class LaserService
         _laserStrokes.Add((stroke, DateTime.UtcNow));
     }
 
+    /// <summary>Laser strokes share the ink canvas with the real ink: undo, clear and the
+    /// eraser leave these alone.</summary>
+    public bool IsLaserStroke(Stroke stroke) => _laserStrokes.Any(l => l.Stroke == stroke);
+
     public void ClearTracking() => _laserStrokes.Clear();
 
     private void OnFadeTick(object? sender, EventArgs e)
@@ -54,8 +58,10 @@ public class LaserService
 
             if (ageMs >= _fadeMs)
             {
-                _inkCanvas.Strokes.Remove(stroke);
+                // Only if it is still there: something else (a clear) may have taken it,
+                // and a failed remove would repeat on every tick
                 _laserStrokes.RemoveAt(i);
+                if (_inkCanvas.Strokes.Contains(stroke)) _inkCanvas.Strokes.Remove(stroke);
             }
             else
             {
@@ -69,7 +75,7 @@ public class LaserService
     private void RemoveAllLaserStrokes()
     {
         foreach (var (stroke, _) in _laserStrokes)
-            _inkCanvas.Strokes.Remove(stroke);
+            if (_inkCanvas.Strokes.Contains(stroke)) _inkCanvas.Strokes.Remove(stroke);
         _laserStrokes.Clear();
     }
 }
