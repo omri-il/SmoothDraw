@@ -2,7 +2,7 @@ using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Threading;
 
-namespace SmoothAnnotate.Services;
+namespace SmoothDraw.Services;
 
 public class LaserService
 {

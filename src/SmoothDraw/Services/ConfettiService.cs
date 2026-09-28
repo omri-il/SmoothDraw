@@ -4,7 +4,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace SmoothAnnotate.Services;
+namespace SmoothDraw.Services;
 
 public class ConfettiService
 {

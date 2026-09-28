@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Input.StylusPlugIns;
 
-namespace SmoothAnnotate.Views;
+namespace SmoothDraw.Views;
 
 /// <summary>
 /// An InkCanvas where a finger draws like the mouse, except while the pen is near the

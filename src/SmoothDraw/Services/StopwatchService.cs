@@ -1,6 +1,6 @@
 using System.Windows.Threading;
 
-namespace SmoothAnnotate.Services;
+namespace SmoothDraw.Services;
 
 public class StopwatchService
 {

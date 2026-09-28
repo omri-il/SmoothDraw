@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace SmoothAnnotate.Native;
+namespace SmoothDraw.Native;
 
 public static class User32
 {

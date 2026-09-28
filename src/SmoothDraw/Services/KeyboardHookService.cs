@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using SmoothAnnotate.Native;
+using SmoothDraw.Native;
 
-namespace SmoothAnnotate.Services;
+namespace SmoothDraw.Services;
 
 public class KeyboardHookService : IDisposable
 {

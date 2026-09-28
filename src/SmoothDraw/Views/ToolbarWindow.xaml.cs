@@ -5,10 +5,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using SmoothAnnotate.Models;
-using SmoothAnnotate.Services;
+using SmoothDraw.Models;
+using SmoothDraw.Services;
 
-namespace SmoothAnnotate.Views;
+namespace SmoothDraw.Views;
 
 public partial class ToolbarWindow : Window
 {
@@ -112,9 +112,7 @@ public partial class ToolbarWindow : Window
 
     private const double DotSize = 42;
 
-    private static readonly string DotFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "SmoothAnnotate", "dot-position.json");
+    private static readonly string DotFile = Path.Combine(AppIdentity.SettingsDir, "dot-position.json");
 
     private static Point? LoadDotPosition()
     {

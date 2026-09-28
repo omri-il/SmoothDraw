@@ -8,10 +8,10 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
-using SmoothAnnotate.Models;
-using SmoothAnnotate.Services;
+using SmoothDraw.Models;
+using SmoothDraw.Services;
 
-namespace SmoothAnnotate.Views;
+namespace SmoothDraw.Views;
 
 public partial class OverlayWindow : Window
 {

@@ -2,14 +2,14 @@ using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
-using SmoothAnnotate.Models;
-using SmoothAnnotate.Services;
-using SmoothAnnotate.Views;
+using SmoothDraw.Models;
+using SmoothDraw.Services;
+using SmoothDraw.Views;
 using SmoothShared;
 using WinForms = System.Windows.Forms;
 using Drawing = System.Drawing;
 
-namespace SmoothAnnotate;
+namespace SmoothDraw;
 
 public partial class App : System.Windows.Application
 {
@@ -20,9 +20,7 @@ public partial class App : System.Windows.Application
     private ControlPipeServer? _control;
     private AnnotationSettings _settings = new();
 
-    private static readonly string LogFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "SmoothAnnotate", "debug.log");
+    private static readonly string LogFile = AppIdentity.LogFile;
 
     public static void Log(string message)
     {
@@ -44,7 +42,7 @@ public partial class App : System.Windows.Application
         // --autostart (start.vbs at logon): already running is fine, say nothing
         bool autostart = e.Args.Any(a => a.Equals("--autostart", StringComparison.OrdinalIgnoreCase));
 
-        _mutex = new Mutex(true, "Global\\SmoothAnnotateMutex", out bool createdNew);
+        _mutex = new Mutex(true, AppIdentity.MutexName, out bool createdNew);
         if (!createdNew)
         {
             if (toggle)
@@ -54,7 +52,7 @@ public partial class App : System.Windows.Application
             }
             else if (!autostart)
             {
-                System.Windows.MessageBox.Show("SmoothAnnotate is already running.", "SmoothAnnotate",
+                System.Windows.MessageBox.Show($"{AppIdentity.Name} is already running.", AppIdentity.Name,
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
             Shutdown();
@@ -63,7 +61,7 @@ public partial class App : System.Windows.Application
 
         // Clear old log — only the copy that stays does this (a second launch left above)
         try { File.Delete(LogFile); } catch { }
-        Log("=== SmoothAnnotate starting ===");
+        Log($"=== {AppIdentity.Name} starting ===");
 
         SetupCrashRecovery();
 
@@ -100,13 +98,13 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             Log($"STARTUP ERROR: {ex}");
-            System.Windows.MessageBox.Show($"Startup error: {ex.Message}", "SmoothAnnotate Error");
+            System.Windows.MessageBox.Show($"Startup error: {ex.Message}", $"{AppIdentity.Name} Error");
         }
     }
 
     // --- Control line (Start menu, pen button: a second launch with --toggle) ---
 
-    public const string PipeName = "SmoothAnnotate.control";
+    public const string PipeName = AppIdentity.PipeName;
 
     /// <summary>
     /// Commands: status · draw toggle · draw off · laser toggle · clear. Every reply
@@ -151,7 +149,7 @@ public partial class App : System.Windows.Application
         _trayIcon = new WinForms.NotifyIcon
         {
             Icon = CreateIcon(),
-            Text = "SmoothAnnotate",
+            Text = AppIdentity.Name,
             Visible = true,
             ContextMenuStrip = contextMenu
         };
@@ -183,10 +181,10 @@ public partial class App : System.Windows.Application
             g.DrawLine(pen, 6, 26, 26, 6);   // Diagonal line (pen body)
             g.DrawLine(pen, 4, 28, 8, 24);    // Pen tip
 
-            // "A" label for Annotate
+            // "D" label for Draw
             using var font = new Drawing.Font("Segoe UI", 7f, Drawing.FontStyle.Bold);
             using var brush = new Drawing.SolidBrush(color);
-            g.DrawString("A", font, brush, 16, 16);
+            g.DrawString("D", font, brush, 16, 16);
         }
         return Drawing.Icon.FromHandle(bitmap.GetHicon());
     }

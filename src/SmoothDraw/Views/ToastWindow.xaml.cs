@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Animation;
-using SmoothAnnotate.Services;
+using SmoothDraw.Services;
 
-namespace SmoothAnnotate.Views;
+namespace SmoothDraw.Views;
 
 public partial class ToastWindow : Window
 {

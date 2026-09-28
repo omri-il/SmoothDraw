@@ -1,4 +1,4 @@
-namespace SmoothAnnotate.Models;
+namespace SmoothDraw.Models;
 
 public class AnnotationSettings
 {

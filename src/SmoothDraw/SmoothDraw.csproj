@@ -9,7 +9,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <ApplicationIcon>../../assets/smoothannotate.ico</ApplicationIcon>
+    <ApplicationIcon>../../assets/smoothdraw.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

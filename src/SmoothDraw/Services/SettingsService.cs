@@ -1,14 +1,12 @@
 using System.IO;
 using System.Text.Json;
-using SmoothAnnotate.Models;
+using SmoothDraw.Models;
 
-namespace SmoothAnnotate.Services;
+namespace SmoothDraw.Services;
 
 public static class SettingsService
 {
-    private static readonly string SettingsDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "SmoothAnnotate");
+    private static readonly string SettingsDir = AppIdentity.SettingsDir;
 
     private static readonly string SettingsFile = Path.Combine(SettingsDir, "settings.json");
 
