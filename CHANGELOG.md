@@ -1,8 +1,181 @@
-# SmoothZoom + SmoothAnnotate — history
+# SmoothDraw — history
 
 **Not auto-loaded.** Split out of `CLAUDE.md` on 2026-09-27 (`/compress-docs`). `CLAUDE.md`
 keeps the rules; this file keeps why they exist — the dated incidents and decisions behind
-them. Newest first. Git history has the full detail.
+them. Newest first. Git history has the full detail. Everything before 2026-09-28 happened
+in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
+entries cover both apps.
+
+## 2026-09-28/29 — SmoothDraw: its own repo, a toolbar that opens at the dot, undo
+
+Omri calls the drawing app "Smooth Draw" and asked for three things: a folder of its own,
+the toolbar opening where the dot is (his dot sits at the bottom; the bar always opened at
+the top-centre), and a lighter toolbar — confetti and delete were invisible. Decided with
+him the same day: the new name everywhere, the light toolbar he was shown, and, this
+round, undo/redo (it also makes Clear undoable, instead of a planned "undo for 5 s after
+Clear") and pen thickness.
+
+- **The split.** A fresh clone of smoothzoom through `git filter-repo` (paths of this app,
+  `src/Shared`, deploy, tools and the docs; `src/SmoothAnnotate` renamed `src/SmoothDraw`)
+  kept 31 commits; published as `omri-il/SmoothDraw` (public, like smoothzoom). One commit
+  renamed everything and put every outside name in `AppIdentity.cs`. On first start the
+  app copies SmoothAnnotate's settings files (never moves them) and stops a running
+  SmoothAnnotate, again after 60 s. Its own install: `E:\apps\SmoothDraw`, logon task
+  "SmoothDraw" running the exe directly, Start-menu `SmoothDraw.lnk`.
+- **The toolbar.** Rebuilt light, with Tabler line icons. The two invisible buttons were
+  emoji `TextBlock`s, which WPF draws in one colour — black, on the near-black bar. It now
+  opens at the dot (same vertical centre, growing toward the middle of the screen) and
+  closes back into it; dragging the bar moves the dot's home. Two WPF surprises on the way,
+  both in CLAUDE.md: the dot's window came out 136 px wide (Windows' minimum width while a
+  window is created), and `Loaded` fired before `SourceInitialized`, so the first placement
+  ran with no window handle.
+- **Found: the app is System-DPI-aware**, not PerMonitorV2 as the docs had said for both
+  apps. The placement is written in Win32 pixels, which is right in either mode; on the
+  home PC's 150 % left screen the toolbar and ink are stretched by Windows. Not changed
+  (CLAUDE.md → DPI).
+- **Undo/redo** as commands over the real strokes and elements, recorded where each change
+  happens. **Keys used while drawing are now kept from the program underneath** (F11 had
+  also put the browser full screen, Ctrl+V pasted there), except while typing in a text
+  box. **Tooltips were being recorded** (their own windows, outside the toolbar's capture
+  exclusion); now excluded before they fade in.
+- **Pen thickness** (Thin / Medium / Thick) and the colour and text size remembered in
+  `pen.json` — before, every start began red.
+- **The home PC's portable SDK** builds with one command now (`publish.ps1 -Dotnet
+  -NuGetConfig`, the config at `E:\tools\nuget-clean.config`).
+- **Installed on the home PC 2026-09-29.** The Debug runs had been started from the Claude
+  desktop app, whose MSIX package redirected the files they created under AppData into its
+  own `LocalCache`; the session then read that stale log over the real one, and the
+  installed app looked as if it logged nothing. Read through a one-off scheduled task, the
+  real log had the migration lines. The logon task asks for normal priority: SmoothZoom,
+  started through its task, was found running BelowNormal.
+- **The touch test and Notepad.** Its old `esc` step started Notepad as the key target. On
+  Windows 11 that reopened Omri's last Notepad session (53 tabs, 9 with unsaved edits of
+  his), `Stop-Process` on the launcher closed nothing, and the new keys step then typed
+  "abc" into Notepad twice, because its own window had not come to the front. Nothing of
+  his changed; the test tab was emptied and closed, and the Notepad window was left open
+  for him to close. The test now uses only a window of its own, types only when that
+  window is in front, and never uses the "hold Alt" trick (which froze it: a lone Alt tap
+  opens a WinForms window's menu mode). Its palm and grace checks fail on the home PC for
+  the old SmoothAnnotate too — the synthetic pen is not seen as near there — so they are
+  the laptop's to judge.
+
+The text of `CLAUDE.md` before the split: `git show 49c653b:CLAUDE.md` (smoothzoom's
+`e1be3aa`). The lines of it that did not survive word for word into the two new CLAUDE.md
+files (reworded, moved, renamed, or about SmoothZoom and trimmed from this repo's copy):
+
+```text
+# SmoothZoom + SmoothAnnotate
+Two companion WPF desktop tools for video tutorial recording: screen zoom + screen annotation overlay.
+src/SmoothAnnotate/    the drawing overlay app (below)
+src/Shared/ControlPipe.cs   the control pipe, compiled into both ("Control from other programs")
+assets/                smoothzoom.ico · smoothannotate.ico (drawn by deploy/make_icons.py)
+tools/touch-test.ps1   touch/pen checks without hands ("Testing touch without hands")
+## SmoothAnnotate (`src/SmoothAnnotate/`)
+Transparent overlay for screen drawing, shapes, laser pointer, and fun effects. Designed for video tutorials with Wacom stylus support.
+| F8 | Toggle draw mode, from anywhere (never F9 — that is OBS zoom-to-mouse) |
+| F10 | Clear all |
+| Esc | Stop drawing (back to the mouse). While typing text, the first Esc finishes the text. Swallowed only when it stopped something, so it still reaches the app underneath otherwise |
+| Ctrl+0 | Mouse mode (click-through; the toolbar shrinks to its dot — see Mouse/Pointer below) |
+### Toolbar Features
+- **Excalidraw-style horizontal bar** at top-center of screen (draggable)
+  since 2026-09-28): the toolbar, its dot and the mode labels (`ToastWindow`: "PEN",
+  "MOUSE"…). Omri sees them; OBS, screenshots and screen shares don't, the same as the OBS
+  remote. **Never the overlay:** its ink is what the video is for. The debug log says
+  `Toolbar: hidden from screen capture` / `Mode label: …` at start, or `… FAILED` if Windows
+  (`HideToolbarWhenIdle` false, the default since 2026-09-28): **click the dot = pen, drag
+  it = move it**. It remembers its place in `%APPDATA%\SmoothAnnotate\dot-position.json`
+  (DIPs; top-center the first time, or when that place is no longer on any screen). The
+  full toolbar still opens top-center. The dot replaced the OBS remote's ✏️ button as the
+  mouse's way in. Until the capture exclusion above, the default was `true` (hide
+  completely), because a visible toolbar or dot ended up in every video.
+- **Select/Move** — drag ink strokes and shapes to reposition; arrows move as one piece (line + head)
+- **Pen** — pressure-sensitive Wacom support, subtle shadow
+- **Highlighter** — semi-transparent yellow, rectangle tip
+- **Eraser** — stroke-level removal
+- **Laser** — single-stroke fade with glow, configurable fade duration
+- **Shapes** — Arrow (sharp pointy head), Rectangle, Circle — all with drop shadows
+- **Text** — Hebrew RTL auto-detect, 4 sizes (Small 24 / Medium 32 / Large 48 / XL 72)
+- **Color picker** — 5 colors with glow swatches
+- **Confetti** — 60-particle burst with physics (gravity, spin, fade)
+- **Timer** — Stopwatch HUD, double-tap to reset
+- **Close** — ✕ in the toolbar header **stops drawing**, exactly like the mouse button
+  home PC (2026-09-27): the app kept running, drawing turned off, the log said MOUSE.
+- **Paste image** — Ctrl+V pastes clipboard image as draggable element on overlay
+├── App.xaml(.cs)              # Entry point, tray icon, service wiring
+│   └── AnnotationTool.cs      # Tool enum (None/Pen/Highlighter/Eraser/Laser/Arrow/Rectangle/Circle/Text/Select)
+│   ├── User32.cs              # P/Invoke: hooks, window styles, monitors, SetWindowPos
+│   ├── KeyboardHookService.cs # F8, F10-F12, Esc, Ctrl+0-8, Ctrl+V, Ctrl+Alt combos
+│   ├── OverlayService.cs      # Win32 click-through toggling, z-order
+    ├── ToolbarWindow.xaml(.cs)  # Horizontal dark toolbar (draggable, collapsible to dot)
+### Key Technical Patterns
+  - **50ms `DispatcherTimer`** checks the cursor position via `GetCursorPos` and temporarily sets the overlay click-through while hovering over the toolbar or remote. DPI-aware using `PresentationSource.TransformToDevice`. It also re-cuts the remote's hole when the remote moves; the toolbar's hole follows its `LocationChanged` / `SizeChanged` / `IsVisibleChanged`.
+- **Toolbar in mouse mode:** the 42 px dot (`ShowIdleToolbar()`, called by `ExitDrawMode()`,
+  (pen). With `HideToolbarWhenIdle: true` the toolbar hides completely instead.
+`HideToolbarWhenIdle` (default false: the dot) — see Mouse/Pointer above. `IgnoreTouchNearPen` (default true)
+`dot-position.json` beside it.
+### Debug Log
+### Planned (Tier 1 — not yet built)
+1. **Undo/Redo** (Ctrl+Z / Ctrl+Y) — UndoService with combined ink+shape stack
+2. **Pen size toggle** — Thin/Medium/Thick buttons in toolbar
+3. **Filled shapes** — Outline / Tinted / Solid fill mode for Rect + Circle
+4. **Export PNG** (Ctrl+E) — renders annotations to clipboard as transparent PNG
+5. **10 colors** — adds Orange, Pink, Purple, Teal, Gray to palette
+⚠️ **The OBS dashboard no longer controls these apps** (2026-09-28, Omri: "I want to have a
+Both apps are controlled from outside through a **named pipe** (`src/Shared/ControlPipe.cs`,
+compiled into both via a linked `<Compile>` in each csproj). One text command goes in and
+one JSON line comes back, and every reply carries the app's current state. Only the same
+Windows user can connect (`PipeOptions.CurrentUserOnly`). There are 4 instances, so a few
+callers at once never see "pipe busy".
+| `\\.\pipe\SmoothAnnotate.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` | `{ok, drawing, tool}` |
+  - `--toggle`: if the app is already running, send it `ring toggle` / `draw toggle` over
+    the pipe and exit quietly. Otherwise start and switch on. This is what the Start-menu
+    entries and the pen's top button run.
+- **Getting out of drawing on the laptop:** Esc or the toolbar's arrow button.
+- **Ring size:** the laptop's `settings.json` has `HighlightRingSize: 60`. At 200%
+  scaling a ring is 2× its size in pixels, and OBS shrinks that screen to 0.6× (1800 →
+  1080), so 60 comes out at ~72 px in the video, matching the home PC's 70. This is a
+  per-machine value, never a code default.
+### Testing touch without hands (`tools/touch-test.ps1`)
+`powershell -ExecutionPolicy Bypass -File tools\touch-test.ps1 [-Steps finger,palm,laser,esc,toolbar]`
+check. It takes over the screen for ~30 s and presses Esc, so **tell Omri before running it**.
+  as `""` (use `[NullString]::Value`). `$r` and `$R` are the same variable. An exception on
+  a background .NET thread kills the whole script, results included.
+# Build both
+# Run (can run both simultaneously)
+works: a nuget.config OUTSIDE the repo (packageSources = nuget.org, `<fallbackPackageFolders><clear /></fallbackPackageFolders>`),
+passed as `restore --configfile`, then `build` / `publish --no-restore`. Keep packages and
+CLI state on E: as well: `NUGET_PACKAGES=E:\tools\nuget-packages`,
+`DOTNET_CLI_HOME=E:\tools\dotnet-home`. So `deploy\publish.ps1` (plain `dotnet`, restores
+itself) does not run there as is. Its steps done by hand, per app: `restore -r win-x64
+--configfile …` + `publish --no-restore` with publish.ps1's flags, then copy `start.vbs` +
+`install.ps1` beside them. Done this way on 2026-09-28.
+- **DPI awareness:** PerMonitorV2 via ApplicationHighDpiMode project property
+  ⚠️ **F9 belongs to OBS** (zoom-to-mouse, OBS-dashboard repo) — never bind it here. SmoothAnnotate's
+  hook passes keys on, so a shared key fires both apps at once.
+1. **Build** on the laptop, from the repo root: `powershell -File deploy\publish.ps1`. It writes
+   `publish\SmoothTools\` (gitignored): `SmoothZoom\`, `SmoothAnnotate\`, `start.vbs`, `install.ps1`.
+   The exe icons are `assets/*.ico`, drawn by `deploy/make_icons.py` (Pillow, run once,
+   committed): a yellow ring on a dark tile, and a pencil on a red tile. The tray icons
+   are the same icons, read back from the exe.
+   copy stops both apps first, then copies broken or missing files over the good install.
+- Stops both apps, waits for them to exit, and copies the new files in. Windows can hold an
+  folder. `start.vbs` launches both apps with `--autostart`, and one that is already running
+  exits quietly. The task starts them in the logged-on desktop. That is why it also works
+  over SSH, where a process launched directly would run in invisible session 0.
+  script stopped right there, with both apps already stopped and the new files copied. Now
+  If both apps are ever found stopped after an install, `Start-ScheduledTask SmoothTools`.
+- Writes two **Start-menu** entries, `Start Menu\Programs\SmoothTools\`: **"Cursor ring -
+  SmoothZoom"** and **"Draw - SmoothAnnotate"**. Both run the exe with `--toggle`, so a tap
+  switches the ring or drawing on and off. They can be pinned to the taskbar or picked for
+  the pen's top button. The names are English because WScript.Shell reads Hebrew-named
+  `.lnk` files as empty.
+  after any update, check that both apps are running on the laptop. Last seen: the ✕-fix
+  moment): it starts 20 s–2 min late, and the install prints only the other app (e.g.
+  `running: SmoothZoom`). Tell the two apart before waiting: a **block** is a CodeIntegrity
+- Ends by printing `running: SmoothAnnotate, SmoothZoom`. After that, SmoothAnnotate's
+  `debug.log` should say `Toolbar: hidden from screen capture`. (`obs.log` says `connected
+  to OBS` only if `AutoRingWhileRecording` was switched back on.)
+```
 
 ## 2026-09-28 — separated from the OBS dashboard; nothing turns on by itself any more
 

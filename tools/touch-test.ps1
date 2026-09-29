@@ -69,7 +69,9 @@ public static class Inj {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string title);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern void mouse_event(uint f, int x, int y, uint d, UIntPtr e);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
     [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
     const uint DOWN = 0x10000, UPDATE = 0x20000, UP = 0x40000, INRANGE = 0x2, INCONTACT = 0x4, NEW = 0x1;
@@ -158,13 +160,13 @@ public static class Inj {
         keybd_event(0xA2, 0, 2, UIntPtr.Zero);
     }
 
-    // Windows lets a program bring its window to the front only in some cases; Alt held
-    // down while it asks is one of them (the old Alt trick)
-    public static bool ToFront(IntPtr h) {
-        keybd_event(0x12, 0, 0, UIntPtr.Zero);
-        bool ok = SetForegroundWindow(h);
-        keybd_event(0x12, 0, 2, UIntPtr.Zero);
-        return ok;
+    // A real mouse click: brings a window to the front where SetForegroundWindow may not.
+    // (Not the "hold Alt" trick: a lone Alt tap puts a WinForms window into its menu mode,
+    // a modal loop, and the script's DoEvents never came back.)
+    public static void Click(int x, int y) {
+        SetCursorPos(x, y); Thread.Sleep(60);
+        mouse_event(0x2, 0, 0, 0, UIntPtr.Zero); Thread.Sleep(40);
+        mouse_event(0x4, 0, 0, 0, UIntPtr.Zero);
     }
 }
 '@
@@ -235,10 +237,38 @@ function Stroke {
 function RedAt($spot) { RedPixels $spot[0] ($spot[1] - 40) 200 80 }
 function HasRed($spot, [int]$baseline) { (RedAt $spot) -gt $baseline + 10 }
 
-# Lets the key step's test window handle its messages while the script waits
+# Lets the test window handle its messages while the script waits
 function Pump([int]$ms) {
     $end = (Get-Date).AddMilliseconds($ms)
     while ((Get-Date) -lt $end) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 15 }
+}
+
+# The esc and keys steps need a window with the keyboard. It is one of this script's own:
+# never Notepad. Windows 11's Notepad reopens all of its last session's tabs when started
+# (53 of Omri's on 2026-09-29), keeps whatever is typed into it across restarts, and the
+# process Start-Process gets back is only a launcher, so stopping it closes nothing.
+function New-TestWindow {
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = 'SmoothDraw key test'; $form.TopMost = $true; $form.StartPosition = 'Manual'
+    $form.Left = [int]($SW * 0.70); $form.Top = [int]($SH * 0.12); $form.Width = 360; $form.Height = 120
+    $box = New-Object System.Windows.Forms.TextBox
+    $box.Multiline = $true; $box.Dock = 'Fill'
+    $form.Controls.Add($box)
+    $form.Show(); Pump 400
+    return $form
+}
+
+# Brings the test window to the front with a real click (drawing must be off, or the click
+# lands on the canvas). True only when it really is in front: anything typed otherwise
+# would go to whatever program is.
+function Focus-TestWindow($form) {
+    for ($i = 1; $i -le 3; $i++) {
+        [Inj]::Click($form.Left + [int]($form.Width / 2), $form.Top + [int]($form.Height / 2)); Pump 300
+        if ([Inj]::GetForegroundWindow() -eq $form.Handle) { return $true }
+        $form.Activate(); Pump 200
+        if ([Inj]::GetForegroundWindow() -eq $form.Handle) { return $true }
+    }
+    return $false
 }
 
 # "touch ignored" lines in the app's log: tells a palm the app rejected from one that never
@@ -301,15 +331,18 @@ try {
     }
 
     if ($StepList -contains 'esc') {
-        # Esc is swallowed while drawing; Notepad holds focus in case it isn't
-        $np = Start-Process notepad -PassThru
-        Start-Sleep -Milliseconds 1200
-        $s = DrawOn
-        [Inj]::Key(0x1B)
-        Start-Sleep -Milliseconds 300
-        $t = Pipe 'status'
-        Result 'esc' ($s.drawing -and -not $t.drawing) "drawing=$($s.drawing), after Esc drawing=$($t.drawing)"
-        Stop-Process -Id $np.Id -ErrorAction SilentlyContinue
+        # Esc is swallowed while drawing; the test window holds the keyboard in case it isn't
+        [void](Pipe 'draw off')
+        $form = New-TestWindow
+        try {
+            if (-not (Focus-TestWindow $form)) { Result 'esc' $false 'the test window never came to the front: Esc not pressed' }
+            else {
+                $s = DrawOn
+                [Inj]::Key(0x1B); Pump 300
+                $t = Pipe 'status'
+                Result 'esc' ($s.drawing -and -not $t.drawing) "drawing=$($s.drawing), after Esc drawing=$($t.drawing)"
+            }
+        } finally { $form.Close(); $form.Dispose() }
     }
 
     if ($StepList -contains 'toolbar') {
@@ -338,8 +371,12 @@ try {
         $spot = NextSpot; $px = $spot[0]; $py = $spot[1]
         [void](Pipe 'clear'); Start-Sleep -Milliseconds 150
         $base = RedAt $spot
-        [Inj]::Drag($px + 10, $py, $px + 180, $py, 12); Start-Sleep -Milliseconds 350
-        $drew = HasRed $spot $base
+        # An injected touch is sometimes lost before it reaches WPF (see the warm-up): try again
+        $drew = $false
+        for ($try = 1; $try -le 4 -and -not $drew; $try++) {
+            [Inj]::Drag($px + 10, $py, $px + 180, $py, 12); Start-Sleep -Milliseconds 350
+            $drew = HasRed $spot $base
+        }
         $u = Pipe 'undo'; Start-Sleep -Milliseconds 250
         $gone = -not (HasRed $spot $base)
         Result 'undo' ($drew -and $gone) "stroke drew: $drew; after undo no ink: $gone (undo steps left: $($u.undo))"
@@ -352,8 +389,11 @@ try {
         # The eraser: Ctrl+4 (while drawing), a finger drag along the stroke, then undo
         [Inj]::CtrlKey(0x34); Start-Sleep -Milliseconds 300
         $tool = (Pipe 'status').tool
-        [Inj]::Drag($px + 10, $py, $px + 180, $py, 12); Start-Sleep -Milliseconds 350
-        $erased = -not (HasRed $spot $base)
+        $erased = $false
+        for ($try = 1; $try -le 4 -and -not $erased; $try++) {
+            [Inj]::Drag($px + 10, $py, $px + 180, $py, 12); Start-Sleep -Milliseconds 350
+            $erased = -not (HasRed $spot $base)
+        }
         [void](Pipe 'undo'); Start-Sleep -Milliseconds 250
         Result 'erase-undo' ($tool -eq 'Eraser' -and $erased -and (HasRed $spot $base)) "Ctrl+4 -> $tool; the drag erased: $erased; undo brought it back"
     }
@@ -366,21 +406,22 @@ try {
         $clipText = $null; $clipImage = $null
         if ([System.Windows.Forms.Clipboard]::ContainsText()) { $clipText = [System.Windows.Forms.Clipboard]::GetText() }
         elseif ([System.Windows.Forms.Clipboard]::ContainsImage()) { $clipImage = [System.Windows.Forms.Clipboard]::GetImage() }
-        $form = New-Object System.Windows.Forms.Form
-        $form.Text = 'SmoothDraw key test'; $form.TopMost = $true; $form.StartPosition = 'Manual'
-        $form.Left = [int]($SW * 0.70); $form.Top = [int]($SH * 0.12); $form.Width = 360; $form.Height = 120
-        $box = New-Object System.Windows.Forms.TextBox
-        $box.Multiline = $true; $box.Dock = 'Fill'
-        $form.Controls.Add($box)
+        [void](Pipe 'draw off')
+        $form = New-TestWindow
+        $box = $form.Controls[0]
         try {
-            [void](Pipe 'draw off')
-            $form.Show(); Pump 400
-            $front = [Inj]::ToFront($form.Handle); [void]$box.Focus(); Pump 300
+            $front = Focus-TestWindow $form
+            if (-not $front) { throw 'the test window never came to the front: nothing typed' }
+            $held = @(foreach ($m in @(@{ K = 0x11; N = 'Ctrl' }, @{ K = 0x10; N = 'Shift' }, @{ K = 0x12; N = 'Alt' })) {
+                if ([Inj]::GetAsyncKeyState($m.K) -band 0x8000) { $m.N } })
+            if ($held) { "keys: held down before typing: $($held -join ', ')" }
             foreach ($vk in 0x41, 0x42, 0x43) { [Inj]::Key($vk); Pump 60 }   # any keyboard layout: compared with itself
             Pump 200
             $typed = $box.Text
             [System.Windows.Forms.Clipboard]::SetText('LEAK')
             [void](Pipe 'draw toggle'); Pump 400
+            # Were a key to get through, it must land here, never in another program
+            if ([Inj]::GetForegroundWindow() -ne $form.Handle) { throw 'the test window lost the front when drawing started: no keys pressed' }
             [Inj]::CtrlKey(0x56); Pump 250   # Ctrl+V
             [Inj]::CtrlKey(0x5A); Pump 250   # Ctrl+Z
             [Inj]::CtrlKey(0x59); Pump 250   # Ctrl+Y
@@ -389,7 +430,10 @@ try {
             $after = $box.Text
             $state = Pipe 'status'
             $ok = $typed.Length -eq 3 -and $after -eq $typed -and -not $state.drawing
+            if ($typed.Length -ne 3) { "keys: could not type into the test window ('$typed'), so the check proves nothing" }
             Result 'keys' $ok "window in front: $front; typed '$typed', after Ctrl+V/Z/Y and F11 twice while drawing: '$after'; drawing after F11 x2: $($state.drawing)"
+        } catch {
+            Result 'keys' $false $_.Exception.Message
         } finally {
             $form.Close(); $form.Dispose()
             if ($null -ne $clipText) { [System.Windows.Forms.Clipboard]::SetText($clipText) }
