@@ -6,6 +6,23 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-09-29 (evening) — installed on the laptop
+
+The cursor ring came on by itself in a laptop recording: the laptop still ran the
+2026-09-27 builds of both apps (smoothzoom's CHANGELOG). Both were updated that evening,
+SmoothDraw first. It was installed through a one-off scheduled task, so its files landed
+outside the Claude desktop app's package (CLAUDE.md → Build & Run). It ran at once, and
+Smart App Control let it through. Nothing to carry over: the laptop's SmoothAnnotate had
+never saved a settings file or a dot place. SmoothAnnotate's folder and Start-menu entry
+went with smoothzoom's install right after.
+
+The lines this replaced in CLAUDE.md: "⏳ **The laptop still runs SmoothAnnotate** — same
+order there (below), and watch Smart App Control."; Settings: "(the home PC had none on
+2026-09-28, so code defaults rule there; … — check the laptop's before relying on a
+default)"; Smart App Control: "(last read 2026-09-27 15:49: …)" and "Last seen: the ✕-fix
+build (5d3f3f4, then still SmoothAnnotate) was let through, and ran within 18 s
+(2026-09-27 ~21:50)."
+
 ## 2026-09-28/29 — SmoothDraw: its own repo, a toolbar that opens at the dot, undo
 
 Omri calls the drawing app "Smooth Draw" and asked for three things: a folder of its own,

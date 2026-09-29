@@ -269,9 +269,9 @@ declares none. What that means:
   which would then be wrong for a screen of other scaling.
 
 ## Settings
-Stored at `%APPDATA%\SmoothDraw\settings.json` (the home PC had none on 2026-09-28, so
-code defaults rule there; a saved file pins every value at the time it was saved — check
-the laptop's before relying on a default).
+Stored at `%APPDATA%\SmoothDraw\settings.json` (neither machine has one: the home PC had
+none on 2026-09-28, the laptop none on 2026-09-29, so code defaults rule on both; a saved
+file pins every value at the time it was saved — re-check before relying on a default).
 `HideToolbarWhenIdle` (default false: the dot) — see "The dot" above. `IgnoreTouchNearPen` (default true)
 and `PassThroughWindowTitle` — see "Pen and touch" below. The dot's place is NOT a setting:
 `dot-position.json` beside it; nor is what you pick on the toolbar: `pen.json`.
@@ -465,6 +465,10 @@ outside the package) wrote the real one — it looked as if the installed app lo
 So: judge the installed app, read its real files through a one-off scheduled task (it runs
 outside the package), and delete any `LocalCache\Local\SmoothDraw` a Debug run left.
 Named pipes, processes, E:\ and the Start menu were not redirected.
+The same goes for installing on the laptop: run `install.ps1` through a one-off scheduled
+task, as on 2026-09-29 (smoothzoom CLAUDE.md → Install / update, "From a Claude desktop
+session"). SmoothZoom's laptop settings never reached the real app this way: from 2026-09-27 to
+2026-09-29 they existed only in Claude's hidden copy.
 
 ### On the home PC (E:\tools\dotnet)
 ⚠️ **A plain `dotnet restore` fails there**: `Unable to find fallback package folder
@@ -539,20 +543,25 @@ What `deploy\install.ps1` does (safe to re-run; that is how you update):
   converted from WPF units (10,975) to pixels (0,965)`, so the dot came up on its old spot
   (bottom-left); task "SmoothDraw" at logon with priority 4; the Start-menu entry switched
   drawing on and off. Then smoothzoom's cleanup removed `E:\apps\SmoothTools\SmoothAnnotate`
-  and "Draw - SmoothAnnotate". ⏳ **The laptop still runs SmoothAnnotate** — same order
-  there (below), and watch Smart App Control.
+  and "Draw - SmoothAnnotate".
+- **Installed on the laptop 2026-09-29 18:44** (build of 1092023), through a one-off
+  scheduled task (Build & Run above): `running: SmoothDraw`, Normal priority, no
+  CodeIntegrity 3077; the log said `Toolbar: hidden from screen capture`. Nothing was
+  carried over: the laptop had no `%APPDATA%\SmoothAnnotate` (it ran on defaults), so the
+  dot started top-centre. Then smoothzoom's install removed SmoothAnnotate's folder and
+  "Draw - SmoothAnnotate".
 - **Order on a machine that has SmoothAnnotate:** install SmoothDraw first and check it
   (running, the log lines above, the old dot place), and only then install smoothzoom's
   cleanup, which deletes the old `SmoothAnnotate\` folder and its Start-menu entry. If
   SmoothDraw is blocked (below), start the old SmoothAnnotate again and remove the task
   `SmoothDraw`: nothing is lost, its settings were only copied.
-- 🚨 **The laptop has Smart App Control ON** (last read 2026-09-27 15:49: `Get-MpComputerStatus` →
+- 🚨 **The laptop has Smart App Control ON** (last read 2026-09-29 ~18:40: `Get-MpComputerStatus` →
   `SmartAppControlState: On`; the home PC is Off. Omri was given the steps to turn it off
   himself, since it's a security setting; re-read it before relying on this line). SAC blocks
   unsigned programs it has no good cloud verdict for. **Every new build is judged again, and
   the verdict varies** — a build can be blocked and the next one let through (CHANGELOG). So
-  after any update, check that the app is running on the laptop. Last seen: the ✕-fix
-  build (5d3f3f4, then still SmoothAnnotate) was let through, and ran within 18 s (2026-09-27 ~21:50). A block is CodeIntegrity
+  after any update, check that the app is running on the laptop. Last seen: the first
+  `SmoothDraw.exe` on the laptop (build of 1092023) was let through, running within 10 s (2026-09-29 18:44). A block is CodeIntegrity
   event 3077, "did not meet the Enterprise signing level requirements". (Launched by the old
   `start.vbs`, the block showed up as a "Windows Script Host" error box.) The check: `Get-WinEvent -LogName
   'Microsoft-Windows-CodeIntegrity/Operational'`, event 3077 naming the exe. Never try to
