@@ -114,6 +114,9 @@ call (Esc is the one exception: whether it is kept depends on its answer).
   at all — it is hidden from every kind of screenshot.
 
 ### The dot, and where the bar opens
+- ⚠️ **Both machines hide the dot since 2026-10-10** (`HideToolbarWhenIdle: true` in their
+  settings.json, Settings below): stopping drawing hides the toolbar completely. The rest of
+  this section is how the dot works when it is on.
 - **Mouse/Pointer** — exits draw mode, and the toolbar shrinks to a **42 px dot**
   (`HideToolbarWhenIdle` false, the default since 2026-09-28): white, a dark pencil, the ink
   colour as a badge. **Click the dot = pen, drag it = move it.** The dot replaced the OBS
@@ -269,10 +272,21 @@ declares none. What that means:
   which would then be wrong for a screen of other scaling.
 
 ## Settings
-Stored at `%APPDATA%\SmoothDraw\settings.json` (neither machine has one: the home PC had
-none on 2026-09-28, the laptop none on 2026-09-29, so code defaults rule on both; a saved
-file pins every value at the time it was saved — re-check before relying on a default).
-`HideToolbarWhenIdle` (default false: the dot) — see "The dot" above. `IgnoreTouchNearPen` (default true)
+Stored at `%APPDATA%\SmoothDraw\settings.json`. **Since 2026-10-10 both machines have one,
+written by hand with ONE key: `{"HideToolbarWhenIdle": true}`** (Omri: "I don't want the
+SmoothDraw circle to be visible all the time on the side of my screen"). Every other value
+is still the code default: a missing key keeps its default when the file is read. A file the
+app itself saved would pin every value at the time it was saved — re-check before relying on
+a default. Before that day neither machine had a file.
+`HideToolbarWhenIdle` (code default false: the dot) — see "The dot" above.
+- **No dot = drawing starts from F8**: the pad's small right knob press (davinci-automation
+  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), or F8 itself.
+  The toolbar shows while drawing and goes away when drawing stops.
+- How it was put there: the laptop through a one-off scheduled task (the MSIX redirect in
+  "Build & Run"), the home PC over SSH; then SmoothDraw stopped and started again by its
+  logon task (`Start-ScheduledTask SmoothDraw`). The setting is read only at start. The log
+  still says `Toolbar closed: dot at (…)` at start; what counts is the toolbar window
+  (`SmoothDraw Toolbar`) being invisible, which it was on the laptop. `IgnoreTouchNearPen` (default true)
 and `PassThroughWindowTitle` — see "Pen and touch" below. The dot's place is NOT a setting:
 `dot-position.json` beside it; nor is what you pick on the toolbar: `pen.json`.
 - **Taken over from SmoothAnnotate** (`App.OnStartup`): each of `settings.json` /
