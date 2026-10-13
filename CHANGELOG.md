@@ -6,6 +6,15 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-13 — drawing moves to F9 (F8 is OBS's zoom now)
+- Omri, setting up live editing in OBS (the camera full / small on F7, OBS-dashboard): he wanted
+  the zoom to the mouse on F8, beside F7, and chose to swap the two keys. Drawing's toggle is
+  `VK_F9` now; F8 belongs to OBS (OBS-dashboard `tools/set_zoom_key.py` moved the zoom's binding
+  in every scene collection). The macro pad's small right knob press sends F9 now
+  (davinci-automation `generate_deck.py`).
+- Why both had to move together: this hook passes the key on, so a key both tools catch fires
+  both (the reason drawing left F9 for F8 on 2026-09-26, the other way round).
+
 ## 2026-09-29 (evening) — installed on the laptop
 
 The cursor ring came on by itself in a laptop recording: the laptop still ran the

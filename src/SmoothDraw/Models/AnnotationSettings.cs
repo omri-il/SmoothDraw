@@ -12,7 +12,7 @@ public class AnnotationSettings
     public int LaserFadeMs { get; set; } = 1500;
     public double TimerFontSize { get; set; } = 28.0;
     // Not drawing: false = the toolbar shrinks to a small dot (click to draw, drag to move);
-    // true = it goes away completely and only F8 / the Start menu / the pen bring it back.
+    // true = it goes away completely and only F9 / the Start menu / the pen bring it back.
     // Either way no recording shows it: the toolbar window is hidden from screen capture.
     public bool HideToolbarWhenIdle { get; set; } = false;
     // On a touch screen with a pen (the laptop): a finger draws, but not while the pen is

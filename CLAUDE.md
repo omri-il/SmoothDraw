@@ -21,7 +21,7 @@ THIRD-PARTY-NOTICES.md     Tabler Icons (MIT), the toolbar's icons
 ```
 
 ## Hotkeys
-⚠️ **Only F8 works in every program. Every other key below acts only while you are
+⚠️ **Only F9 works in every program (F8 until 2026-10-13, see the table). Every other key below acts only while you are
 already drawing** (`KeyboardHookService.IsDrawing`, since 2026-09-28). Caught everywhere,
 they were ordinary keys in other programs: Ctrl+1 (browser tab) switched the pen on, and
 Ctrl+V with a screenshot on the clipboard pasted it onto the screen. The log showed both on
@@ -39,7 +39,7 @@ call (Esc is the one exception: whether it is kept depends on its answer).
 
 | Key | Action |
 |-----|--------|
-| F8 | Toggle draw mode, from anywhere (never F9 — that is OBS zoom-to-mouse). Not kept from other programs |
+| F9 | Toggle draw mode, from anywhere (never F8 — that is OBS zoom-to-mouse since 2026-10-13; the two were swapped that day, F8 was this key before). Not kept from other programs |
 | F10 | Clear all (undoable) |
 | F11 | Laser pointer on/off — pressed again it goes back to the mouse, never to the pen (the screen would stay covered) |
 | Esc | Stop drawing (back to the mouse). While typing text, the first Esc finishes the text. Kept from the app underneath only when it stopped something |
@@ -79,7 +79,7 @@ call (Esc is the one exception: whether it is kept depends on its answer).
   never `Collapsed`, so **the bar keeps one width** and no button slides under the pointer.
 - **The ink colour shows everywhere:** the swatch (violet ring), a badge on the Pen button
   and on the dot. White and yellow get a `#D6D6E0` ring so they show on white.
-- **Tooltips:** name + shortcut ("Pen · Ctrl+1 (F8)"), after 700 ms.
+- **Tooltips:** name + shortcut ("Pen · Ctrl+1 (F9)"), after 700 ms.
 - 🎥 **Hidden from screen capture** (`OverlayService.HideFromCapture`, `WDA_EXCLUDEFROMCAPTURE`,
   since 2026-09-28): the toolbar, its dot, the mode labels (`ToastWindow`: "PEN",
   "MOUSE"…) and **the tooltips**. Omri sees them; OBS, screenshots and screen shares don't,
@@ -225,7 +225,7 @@ src/SmoothDraw/
 │   └── Kernel32.cs            # P/Invoke: GetModuleHandle
 ├── Services/
 │   ├── DrawingHistory.cs      # Undo / redo: the history and its steps
-│   ├── KeyboardHookService.cs # F8, F10-F12, Esc, Ctrl+0-8, Ctrl+V, Ctrl+Z/Y, Ctrl+Alt combos; what to keep from other programs
+│   ├── KeyboardHookService.cs # F9, F10-F12, Esc, Ctrl+0-8, Ctrl+V, Ctrl+Z/Y, Ctrl+Alt combos; what to keep from other programs
 │   ├── LaserService.cs        # Laser fade-out timer (single-stroke approach)
 │   ├── StopwatchService.cs    # Timer with double-tap reset
 │   ├── ConfettiService.cs     # Particle physics confetti
@@ -279,8 +279,8 @@ is still the code default: a missing key keeps its default when the file is read
 app itself saved would pin every value at the time it was saved — re-check before relying on
 a default. Before that day neither machine had a file.
 `HideToolbarWhenIdle` (code default false: the dot) — see "The dot" above.
-- **No dot = drawing starts from F8**: the pad's small right knob press (davinci-automation
-  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), or F8 itself.
+- **No dot = drawing starts from F9**: the pad's small right knob press (davinci-automation
+  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), or F9 itself.
   The toolbar shows while drawing and goes away when drawing stops.
 - How it was put there: the laptop through a one-off scheduled task (the MSIX redirect in
   "Build & Run"), the home PC over SSH; then SmoothDraw stopped and started again by its
@@ -329,7 +329,7 @@ instances, so a few callers at once never see "pipe busy".
 
 SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. Until
 2026-09-28 this one was `SmoothAnnotate.control`.
-- **`draw toggle` is on/off, not F8's cycle.** It switches between pen and mouse. From the
+- **`draw toggle` is on/off, not F9's cycle.** It switches between pen and mouse. From the
   laser it goes to the pen, because the laser has its own switch (F11; the remote's laser
   button, until 2026-09-28) (`ToggleDrawOnOff`).
 - **`laser toggle` = F11**: laser on, or from the laser back to the mouse (`ToggleLaser`).
@@ -385,7 +385,7 @@ SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. U
     feedback circles are switched off on the overlay (`Stylus.Set…Enabled`).
 - **Getting out of drawing on the laptop:** Esc or the toolbar's mouse button.
   Finger taps work on the toolbar thanks to the hit-layer holes (Key Technical Patterns).
-  F8/F11 need Fn there (see the last bullet).
+  F9/F11 need Fn there (see the last bullet).
 - **The remote stays clickable while drawing** (`PassThroughWindowTitle`, default
   "מרכז השליטה של OBS"). The full-screen drawing layer would otherwise cover it, including
   REC / stop (until 2026-09-28 also its "stop drawing" button). The hit layer has a hole over that window (`PassThroughRect`,
@@ -394,8 +394,8 @@ SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. U
   above the layer. Verified with a real mouse click on the home PC (2026-09-27): ✏️ on the
   remote switched drawing off through the layer. How: OBS-dashboard CLAUDE.md → "How the row
   was tested".
-- HP laptops ship with the top row as media keys (F1–F12 need Fn), so on the laptop F8 is
-  most likely **Fn+F8**. Not verified on this one: its BIOS "action keys" setting needs admin
+- HP laptops ship with the top row as media keys (F1–F12 need Fn), so on the laptop F9 is
+  most likely **Fn+F9**. Not verified on this one: its BIOS "action keys" setting needs admin
   to read (2026-09-27). Either way the laptop is meant to be driven from the dot, the
   Start menu and the pen.
 
@@ -502,8 +502,10 @@ state on E: as well: `DOTNET_CLI_HOME=E:\tools\dotnet-home`.
 
 ## Key Technical Details
 - **No hotkey conflicts:** SmoothZoom uses Ctrl+Alt, SmoothDraw uses F-keys + Ctrl+number (different patterns).
-  ⚠️ **F9 belongs to OBS** (zoom-to-mouse, OBS-dashboard repo) — never bind it here. F8 is
-  passed on to other programs, so a key shared with another app fires both at once.
+  ⚠️ **F8 belongs to OBS** (zoom-to-mouse, OBS-dashboard repo; F9 until 2026-10-13, when Omri
+  swapped the two so the zoom sits beside F7 = the camera full / small) — never bind it here. F9 is
+  passed on to other programs, so a key shared with another app fires both at once. F7 is the
+  OBS dashboard's too.
 
 ## Install / update (laptop + home PC)
 Its own install, fully apart from SmoothZoom's (Omri: "a separation between the tools"):

@@ -558,7 +558,7 @@ public partial class OverlayWindow : Window
     /// <summary>The pipe's "snapshot": PNGs of the toolbar, which no screenshot can show.</summary>
     public List<string> RenderToolbarSnapshots(string dir) => _toolbar?.RenderSnapshots(dir) ?? new List<string>();
 
-    /// <summary>Drawing on (pen) or off — a plain switch, unlike F8's cycle. From the
+    /// <summary>Drawing on (pen) or off — a plain switch, unlike F9's cycle. From the
     /// laser it goes to the pen: the laser has its own switch (F11).</summary>
     public void ToggleDrawOnOff() =>
         SelectToolByNumber(_isDrawMode && _currentTool != AnnotationTool.Laser ? 0 : 1);

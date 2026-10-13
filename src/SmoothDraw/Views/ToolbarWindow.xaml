@@ -143,7 +143,7 @@
 
                     <!-- The pen carries a badge in the ink colour -->
                     <Button x:Name="BtnPen" Style="{StaticResource ToolBtn}" Tag="Pen" Click="ToolButton_Click"
-                            ContentTemplate="{x:Null}" ToolTip="Pen · Ctrl+1 (F8)">
+                            ContentTemplate="{x:Null}" ToolTip="Pen · Ctrl+1 (F9)">
                         <Grid Width="20" Height="20">
                             <ContentControl Content="{StaticResource Icon.Pen}" ContentTemplate="{StaticResource IconTemplate}"/>
                             <Ellipse x:Name="PenBadge" Width="9" Height="9" HorizontalAlignment="Right" VerticalAlignment="Bottom"

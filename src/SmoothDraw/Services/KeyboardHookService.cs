@@ -14,7 +14,7 @@ public class KeyboardHookService : IDisposable
     private bool _altPressed;
     private bool _shiftPressed;
 
-    private const uint VK_ESCAPE = 0x1B, VK_F8 = 0x77, VK_F10 = 0x79, VK_F11 = 0x7A, VK_F12 = 0x7B;
+    private const uint VK_ESCAPE = 0x1B, VK_F9 = 0x78, VK_F10 = 0x79, VK_F11 = 0x7A, VK_F12 = 0x7B;
     private const uint VK_V = 0x56, VK_Y = 0x59, VK_Z = 0x5A;
 
     // Core tools
@@ -47,7 +47,7 @@ public class KeyboardHookService : IDisposable
     // the app underneath — there Esc would also end a PowerPoint slideshow, say.
     public event Func<bool>? EscapePressed;
 
-    // Whether you are drawing right now. Every key but F8 acts only while you are: in other
+    // Whether you are drawing right now. Every key but F9 acts only while you are: in other
     // programs they are ordinary keys (Ctrl+1 switches browser tabs, Ctrl+V pastes, F11 is
     // full screen), and caught everywhere they kept switching drawing on by itself.
     public Func<bool>? IsDrawing { get; set; }
@@ -120,9 +120,12 @@ public class KeyboardHookService : IDisposable
                     return (IntPtr)1;
                 }
             }
-            else if (vk == VK_F8) // Toggle draw mode, from anywhere (F9 is OBS zoom-to-mouse)
+            // Toggle draw mode, from anywhere. F9 since 2026-10-13 (Omri swapped the two: F8 is
+            // OBS zoom-to-mouse now, beside F7 = the camera full / small). Passed on, never kept:
+            // a key both tools catch fires both, so the two must never share one.
+            else if (vk == VK_F9)
             {
-                App.Log("F8 pressed -> DrawModeToggled");
+                App.Log("F9 pressed -> DrawModeToggled");
                 DrawModeToggled?.Invoke();
             }
             else if (IsDrawing?.Invoke() == true && DrawingKey(vk) is { } key)
