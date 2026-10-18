@@ -6,6 +6,18 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-18 (later) — the top edge brings the bar, and the board has pages
+- Omri: "when I move to the edge of the screen the mouse usually doesn't bring back the toolbar",
+  and "I want several screens to go through, like flipping pages". There was no edge feature at
+  all: since 2026-10-10 (`HideToolbarWhenIdle`) the bar was gone whenever drawing was off, and only
+  F9 / the pad brought it. Asked, he chose: the top edge (over the bar's own side or any edge),
+  pages on the board only (not the screen), flipped by keys on the board and arrows on the toolbar
+  (not the pad).
+- The edge needs a 350 ms rest, not a touch: maximised windows keep their tabs and title bars at
+  the very top, and a touch on the way to them would cover them with the bar. Nothing happens with
+  a mouse button held (a window dragged up there snaps to full screen).
+- No endless blank pages: past the last page is a new one only when the page on show has something.
+
 ## 2026-10-18 — the thinking timer (F6) and the board (F5)
 - Omri asked for "a timer that shows on the screen and goes away" (the class thinks for 10 seconds)
   and a whiteboard "in the style of Khan Academy or Excalidraw". Asked with mockups, he chose: on the

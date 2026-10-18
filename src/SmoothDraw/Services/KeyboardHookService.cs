@@ -31,6 +31,9 @@ public class KeyboardHookService : IDisposable
     public event Action<int>? CountdownRequested;
     public event Action? BoardToggled;
 
+    // The board's pages: -1 back (PageUp / Left), +1 forward (PageDown / Right), while the board is up
+    public event Action<int>? PageTurned;
+
     // Shape tools
     public event Action? ArrowToggled;
     public event Action? RectangleToggled;
@@ -62,6 +65,9 @@ public class KeyboardHookService : IDisposable
     // Whether a text box on the overlay is being typed in. It has the keyboard then, so
     // nothing is kept from it, and Ctrl+Z / Ctrl+Y / Ctrl+V are its own (undo typing, paste).
     public Func<bool>? IsTyping { get; set; }
+
+    // Whether the board (F5) is up: then PageUp / PageDown / Left / Right turn its pages
+    public Func<bool>? IsBoardOn { get; set; }
 
     // A key whose key-down was kept from the other programs gets its key-up kept too, or
     // the program underneath would see a key released that it never saw pressed. Only the
@@ -202,6 +208,15 @@ public class KeyboardHookService : IDisposable
                 return (() => { App.Log("F11 pressed -> LaserToggled"); LaserToggled?.Invoke(); }, false);
             case VK_F12:
                 return (() => { App.Log("F12 pressed -> TimerToggled"); TimerToggled?.Invoke(); }, false);
+        }
+
+        // The board's pages (2026-10-18). Only on the board, so the arrows keep their usual
+        // meaning everywhere else; a text box being typed in keeps them (TextBoxKey)
+        if (!_ctrlPressed && !_altPressed && IsBoardOn?.Invoke() == true)
+        {
+            int? dir = vk switch { 0x21 or 0x25 => -1, 0x22 or 0x27 => +1, _ => null }; // PageUp, Left / PageDown, Right
+            if (dir is int d)
+                return (() => { App.Log($"Page key -> {(d > 0 ? "next" : "previous")} page"); PageTurned?.Invoke(d); }, true);
         }
 
         // Ctrl+number shortcuts for tools, Ctrl+V, undo/redo (Ctrl only, never Alt:

@@ -55,6 +55,7 @@ public partial class ToolbarWindow : Window
     public event Action? ConfettiRequested;
     public event Action? UndoRequested;
     public event Action? RedoRequested;
+    public event Action<int>? PageRequested; // -1 back, +1 forward (the board's pages)
 
     public ToolbarWindow()
     {
@@ -165,6 +166,61 @@ public partial class ToolbarWindow : Window
         }, DispatcherPriority.Loaded);
     }
 
+    // --- The top edge (HideToolbarWhenIdle): the bar shows while the mouse is up there ---
+
+    // How the window was before the peek, to put it back if the peek ends unused
+    private (bool Collapsed, User32.RECT Rect)? _beforePeek;
+
+    public bool IsPeeking => _beforePeek != null;
+
+    /// <summary>The mouse rests on the top edge while not drawing: the bar, at the top of
+    /// that screen, centred on the mouse. A click on it starts drawing there as usual.</summary>
+    public void PeekAtTop(int cursorX, int cursorY)
+    {
+        if (_beforePeek != null) return;
+        _beforePeek = (_isCollapsed, WindowRect());
+        _isCollapsed = false;
+        Opacity = 0;
+        MinimalButton.Visibility = Visibility.Collapsed;
+        MainContent.Visibility = Visibility.Visible;
+        Show();
+        // After layout: only then is the bar's size known
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_beforePeek == null) return;
+            var bar = WindowRect();
+            var probe = new User32.RECT(cursorX, cursorY, cursorX + 1, cursorY + 1);
+            var work = WorkAreaOf(probe);
+            var (left, top) = ClampInto(work, cursorX - bar.Width / 2, work.Top, bar.Width, bar.Height);
+            MoveWindowTo(left, top);
+            RaiseAboveOverlay();
+            Opacity = 1;
+            App.Log($"Toolbar peek at the top edge: bar {WindowRect()}, work {work}");
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Drawing started from the peeked bar: it stays where it is.</summary>
+    public void KeepPeek() => _beforePeek = null;
+
+    /// <summary>The mouse left the peeked bar unused: hidden again, as it was before.</summary>
+    public void EndPeek()
+    {
+        if (_beforePeek is not { } before) return;
+        _beforePeek = null;
+        Hide();
+        if (before.Collapsed)
+        {
+            _isCollapsed = true;
+            MainContent.Visibility = Visibility.Collapsed;
+            MinimalButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            MoveWindowTo(before.Rect.Left, before.Rect.Top);
+        }
+        App.Log("Toolbar peek ended");
+    }
+
     private void PlaceDot()
     {
         var dot = _dotRect ??= DotHome();
@@ -223,6 +279,14 @@ public partial class ToolbarWindow : Window
         if (now.Left != left || now.Top != top)
             User32.SetWindowPos(Hwnd, IntPtr.Zero, left, top, 0, 0,
                 User32.SWP_NOSIZE | User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+    }
+
+    private void KeepInsideWorkArea()
+    {
+        if (!IsVisible || _isCollapsed || Hwnd == IntPtr.Zero) return;
+        var r = WindowRect();
+        var (left, top) = ClampInto(WorkAreaOf(r), r.Left, r.Top, r.Width, r.Height);
+        if (left != r.Left || top != r.Top) MoveWindowTo(left, top);
     }
 
     private User32.RECT WindowRect()
@@ -392,6 +456,8 @@ public partial class ToolbarWindow : Window
     private void ClearButton_Click(object sender, RoutedEventArgs e) => ClearRequested?.Invoke();
     private void UndoButton_Click(object sender, RoutedEventArgs e) => UndoRequested?.Invoke();
     private void RedoButton_Click(object sender, RoutedEventArgs e) => RedoRequested?.Invoke();
+    private void PagePrev_Click(object sender, RoutedEventArgs e) => PageRequested?.Invoke(-1);
+    private void PageNext_Click(object sender, RoutedEventArgs e) => PageRequested?.Invoke(+1);
 
     // --- Visual state ---
 
@@ -432,6 +498,25 @@ public partial class ToolbarWindow : Window
     {
         TextSizeGlyph.FontSize = index switch { 0 => 11, 2 => 17, 3 => 20, _ => 14 };
         BtnTextSize.ToolTip = $"Text size: {PenState.TextSizeNames[index]} · click to change";
+    }
+
+    /// <summary>The board's pages, "2/3", shown only while the board is up (page 0 = hidden).
+    /// Back dims on the first page; forward never does: past the last page is a new one.</summary>
+    public void SetPage(int page, int count)
+    {
+        bool on = page > 0;
+        var want = on ? Visibility.Visible : Visibility.Collapsed;
+        if (PageGroup.Visibility != want)
+        {
+            PageGroup.Visibility = want;
+            // The bar grows to the right by the arrows: a bar flush with the screen's right
+            // edge would hang off it, so it is pulled back in once laid out
+            Dispatcher.BeginInvoke(KeepInsideWorkArea, DispatcherPriority.Loaded);
+        }
+        if (!on) return;
+        PageText.Text = $"{page}/{count}";
+        BtnPagePrev.IsEnabled = page > 1;
+        BtnPageNext.ToolTip = page < count ? "Next page · PageDown / →" : "New page · PageDown / →";
     }
 
     public void SetUndoRedo(bool canUndo, bool canRedo)

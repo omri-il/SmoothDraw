@@ -212,6 +212,17 @@
                     <Button x:Name="BtnClear" Style="{StaticResource ClearBtn}" Click="ClearButton_Click"
                             Content="{StaticResource Icon.Trash}" ToolTip="Clear all · F10"/>
 
+                    <!-- The board's pages (F5): only while the board is up -->
+                    <StackPanel x:Name="PageGroup" Orientation="Horizontal" Visibility="Collapsed">
+                        <Border Style="{StaticResource Separator}"/>
+                        <Button x:Name="BtnPagePrev" Style="{StaticResource ToolBtn}" Click="PagePrev_Click"
+                                Content="{StaticResource Icon.ChevronLeft}" ToolTip="Previous page · PageUp / ←"/>
+                        <TextBlock x:Name="PageText" Text="1/1" MinWidth="30" TextAlignment="Center" VerticalAlignment="Center"
+                                   FontFamily="Segoe UI" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+                        <Button x:Name="BtnPageNext" Style="{StaticResource ToolBtn}" Click="PageNext_Click"
+                                Content="{StaticResource Icon.ChevronRight}" ToolTip="Next page · PageDown / →"/>
+                    </StackPanel>
+
                     <Border Style="{StaticResource Separator}"/>
 
                     <!-- Stops drawing, like the mouse button. Never quits (the tray icon does). -->

@@ -55,19 +55,21 @@ public partial class OverlayWindow : Window
     // even by Clear: an arrow brought back by undo must still move as one piece.
     private readonly Dictionary<UIElement, UIElement> _arrowPairs = new();
 
-    // Undo / redo (Services/DrawingHistory.cs). The screen and the board (F5) each keep
-    // their own: the one not on show waits in _away with its drawings.
+    // Undo / redo (Services/DrawingHistory.cs). The screen and each page of the board (F5)
+    // keep their own: the ones not on show wait in _screen / _pages with their drawings.
     private DrawingHistory _history = new();
 
-    // The board (F5): an empty page over the screen with its own drawings. What is not on
-    // show (the board's drawings, or the screen's while the board is up) waits here.
+    // The board (F5): pages over the screen, each with its own drawings. What is not on show
+    // waits here: the screen's drawings while the board is up, and every page but the one on show.
     private sealed class Surface
     {
         public List<Stroke> Strokes = new();
         public List<UIElement> Shapes = new();
         public DrawingHistory History = new();
     }
-    private Surface _away = new();
+    private Surface _screen;
+    private readonly List<Surface> _pages = new();
+    private int _page; // 0-based: the board's page on show, or the one it opens on
     private bool _boardOn;
     private bool _drawingBeforeBoard;
 
@@ -135,13 +137,15 @@ public partial class OverlayWindow : Window
         _toolbar.UndoRequested += () => Undo();
         _toolbar.RedoRequested += () => Redo();
         _toolbar.ConfettiRequested += TriggerConfetti;
+        _toolbar.PageRequested += TurnPage;
         // It starts on what you picked last
         _toolbar.SetActiveColor(_pen.Color);
         _toolbar.SetThickness(_pen.Thickness);
         _toolbar.SetTextSize(_pen.TextSize);
-        // Both histories report; the toolbar shows the one on show
+        // Every history reports; the toolbar shows the one on show
         _history.Changed += ShowUndoRedo;
-        _away.History.Changed += ShowUndoRedo;
+        _screen = NewSurface();
+        _pages.Add(NewSurface());
         try { Board.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_settings.BoardColor)); }
         catch { App.Log($"BoardColor '{_settings.BoardColor}' is not a colour: the default board"); }
         // ✕ stops drawing, exactly like the toolbar's mouse button. It used to quit the
@@ -163,6 +167,78 @@ public partial class OverlayWindow : Window
             Interval = TimeSpan.FromMilliseconds(50)
         };
         _toolbarHitTimer.Tick += OnToolbarHitCheck;
+
+        // No dot (HideToolbarWhenIdle): the mouse resting on the top edge brings the bar
+        if (_settings.HideToolbarWhenIdle)
+        {
+            _edgeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _edgeTimer.Tick += OnEdgeCheck;
+            _edgeTimer.Start();
+        }
+    }
+
+    // --- The top edge (only with HideToolbarWhenIdle, since 2026-10-18) ---
+    // Omri: moving the mouse to the edge of the screen should bring the toolbar back. Resting
+    // there (EdgeDwell) shows the bar at the top of that screen, centred on the mouse; leaving
+    // it for EdgeLinger hides it again. A click on a tool starts drawing, and the bar stays.
+    // A rest, not a touch: maximised windows have their tabs and title bars up there.
+    private readonly System.Windows.Threading.DispatcherTimer? _edgeTimer;
+    private static readonly TimeSpan EdgeDwell = TimeSpan.FromMilliseconds(350);
+    private static readonly TimeSpan EdgeLinger = TimeSpan.FromMilliseconds(800);
+    private DateTime? _edgeSince;  // the mouse has been on the top edge since
+    private DateTime? _peekLeft;   // the mouse left the peeked bar at
+    private bool _edgeArmed = true; // false after a peek ends, until the mouse leaves the edge (no flapping)
+
+    private void OnEdgeCheck(object? sender, EventArgs e)
+    {
+        if (_toolbar == null) return;
+        // A tool on, not confetti borrowing the overlay (draw mode with no tool)
+        if (_isDrawMode && _currentTool != AnnotationTool.None)
+        {
+            // Drawing started (from the peeked bar, or a key): the bar stays where it is
+            if (_toolbar.IsPeeking) _toolbar.KeepPeek();
+            _edgeSince = _peekLeft = null;
+            return;
+        }
+        if (!Native.User32.GetCursorPos(out var pt)) return;
+        var now = DateTime.UtcNow;
+
+        if (_toolbar.IsPeeking)
+        {
+            // Kept while the mouse is on the bar, or between it and the top edge
+            var keep = _toolbar.GetScreenBounds();
+            if (!keep.IsEmpty) keep.Union(new Point(keep.X, MonitorRectAt(pt).Top));
+            if (!keep.IsEmpty && keep.Contains(pt.X, pt.Y)) { _peekLeft = null; return; }
+            _peekLeft ??= now;
+            if (now - _peekLeft >= EdgeLinger)
+            {
+                _toolbar.EndPeek();
+                _peekLeft = null;
+                _edgeArmed = false;
+            }
+            return;
+        }
+
+        // On the top edge, no button held (a window being dragged up there snaps to full screen)
+        bool held = (Native.User32.GetAsyncKeyState(Native.User32.VK_LBUTTON) & 0x8000) != 0
+                    || (Native.User32.GetAsyncKeyState(Native.User32.VK_RBUTTON) & 0x8000) != 0;
+        if (pt.Y > MonitorRectAt(pt).Top + 1) _edgeArmed = true;
+        if (held || !_edgeArmed || pt.Y > MonitorRectAt(pt).Top + 1)
+        {
+            _edgeSince = null;
+            return;
+        }
+        _edgeSince ??= now;
+        if (now - _edgeSince < EdgeDwell) return;
+        _edgeSince = null;
+        _toolbar.PeekAtTop(pt.X, pt.Y);
+    }
+
+    private static Native.User32.RECT MonitorRectAt(Native.User32.POINT pt)
+    {
+        var mi = new Native.User32.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.User32.MONITORINFO>() };
+        var monitor = Native.User32.MonitorFromPoint(pt, Native.User32.MONITOR_DEFAULTTONEAREST);
+        return Native.User32.GetMonitorInfo(monitor, ref mi) ? mi.rcMonitor : new Native.User32.RECT(0, 0, 1920, 1080);
     }
 
     private void OnToolbarToolSelected(AnnotationTool tool)
@@ -476,7 +552,7 @@ public partial class OverlayWindow : Window
             return;
         }
         _drawingBeforeBoard = _isDrawMode && _currentTool != AnnotationTool.None;
-        SwapSurface();
+        _screen = SwapSurface(_pages[_page]);
         _boardOn = true;
         Board.Visibility = Visibility.Visible;
         if (!_drawingBeforeBoard)
@@ -485,23 +561,70 @@ public partial class OverlayWindow : Window
             EnterDrawMode();
             SetTool(AnnotationTool.Pen);
         }
-        App.Log("Board up");
-        ShowModeIndicator("BOARD");
+        ShowPage();
+        App.Log($"Board up, page {_page + 1}/{_pages.Count}");
+        ShowModeIndicator(_pages.Count > 1 ? $"BOARD {_page + 1}/{_pages.Count}" : "BOARD");
     }
 
     private void HideBoard()
     {
         if (!_boardOn) return;
         _boardOn = false;
-        SwapSurface();
+        _pages[_page] = SwapSurface(_screen);
         Board.Visibility = Visibility.Collapsed;
+        ShowPage();
         App.Log("Board down");
     }
 
+    // --- The board's pages (PageUp / PageDown / ← / →, the toolbar's ◀ ▶) ---
+
+    public int BoardPage => _page + 1;
+    public int BoardPageCount => _pages.Count;
+
+    /// <summary>Flips to the board's next (+1) or previous (-1) page, each with its own
+    /// drawings and undo. Past the last page is a new, empty one — but not from an empty
+    /// page, so pressing on never piles up blank pages. Only while the board is up.</summary>
+    public void TurnPage(int dir)
+    {
+        if (!_boardOn) return;
+        int to = _page + Math.Sign(dir);
+        if (to < 0)
+        {
+            ShowModeIndicator("FIRST PAGE");
+            return;
+        }
+        if (to == _pages.Count)
+        {
+            if (OnShowIsEmpty())
+            {
+                ShowModeIndicator("EMPTY PAGE");
+                return;
+            }
+            _pages.Add(NewSurface());
+        }
+        _pages[_page] = SwapSurface(_pages[to]);
+        _page = to;
+        ShowPage();
+        App.Log($"Board page {_page + 1}/{_pages.Count}");
+        ShowModeIndicator($"PAGE {_page + 1}/{_pages.Count}");
+    }
+
+    private void ShowPage() => _toolbar?.SetPage(_boardOn ? _page + 1 : 0, _pages.Count);
+
+    private bool OnShowIsEmpty() =>
+        ShapeCanvas.Children.Count == 0 && DrawCanvas.Strokes.All(s => _laserService?.IsLaserStroke(s) == true);
+
+    private Surface NewSurface()
+    {
+        var s = new Surface();
+        s.History.Changed += ShowUndoRedo;
+        return s;
+    }
+
     /// <summary>Puts away what is on show (its drawings and its undo history) and brings out
-    /// what was away. Anything under way is finished or dropped first, as Clear does; the
-    /// laser's strokes go (they were fading anyway).</summary>
-    private void SwapSurface()
+    /// <paramref name="incoming"/>; returns what was put away. Anything under way is finished
+    /// or dropped first, as Clear does; the laser's strokes go (they were fading anyway).</summary>
+    private Surface SwapSurface(Surface incoming)
     {
         CommitActiveTextBox();
         if (_isDrawingShape && _shapePreview != null) ShapeCanvas.Children.Remove(_shapePreview);
@@ -524,15 +647,15 @@ public partial class OverlayWindow : Window
         _laserService?.ClearTracking();
 
         // The same collections stay (the history's steps point at them); only what is in them changes
-        foreach (var s in _away.Strokes) strokes.Add(s);
-        foreach (var el in _away.Shapes)
+        foreach (var s in incoming.Strokes) strokes.Add(s);
+        foreach (var el in incoming.Shapes)
         {
             ShapeCanvas.Children.Add(el);
             if (_currentTool == AnnotationTool.Select) el.IsHitTestVisible = true;
         }
-        _history = _away.History;
-        _away = shown;
+        _history = incoming.History;
         ShowUndoRedo();
+        return shown;
     }
 
     private void ShowUndoRedo() => _toolbar?.SetUndoRedo(_history.UndoCount > 0, _history.RedoCount > 0);
@@ -730,7 +853,8 @@ public partial class OverlayWindow : Window
         if (_toolbar == null) return;
         if (_settings.HideToolbarWhenIdle)
         {
-            _toolbar.Hide();
+            if (_toolbar.IsPeeking) _toolbar.EndPeek();
+            else _toolbar.Hide();
             return;
         }
         _toolbar.CollapseToMinimal();

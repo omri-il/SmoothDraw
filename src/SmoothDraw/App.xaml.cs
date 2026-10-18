@@ -198,9 +198,11 @@ public partial class App : System.Windows.Application
     /// <summary>
     /// Commands: status · draw toggle · draw off · laser toggle · clear · undo · redo ·
     /// color &lt;1-5&gt; · snapshot · dot &lt;x&gt; &lt;y&gt; (a new home for the dot, Win32
-    /// pixels; for tests) · board toggle (F5) · countdown &lt;1-600&gt; (F6's timer, seconds).
+    /// pixels; for tests) · board toggle (F5) · page next · page prev (the board's pages) ·
+    /// countdown &lt;1-600&gt; (F6's timer, seconds).
     /// Every reply carries the current state: {ok, drawing, tool, color, thickness, undo,
-    /// redo, board, countdown} (undo / redo = steps available; countdown = its seconds, 0 = none).
+    /// redo, board, page, pages, countdown} (undo / redo = steps available; page = the board's
+    /// page on show, 1-based, 0 = no board; countdown = its seconds, 0 = none).
     /// </summary>
     private object HandleControl(string command)
     {
@@ -219,6 +221,8 @@ public partial class App : System.Windows.Application
             case "redo": overlay.Redo(); break;
             case "snapshot": files = overlay.RenderToolbarSnapshots(AppIdentity.LocalDir).ToArray(); break;
             case "board toggle": overlay.ToggleBoard(); break;
+            case "page next": overlay.TurnPage(+1); break;
+            case "page prev": overlay.TurnPage(-1); break;
             case var c when c.StartsWith("countdown ") && int.TryParse(c[10..], out int secs) && secs is >= 1 and <= 600:
                 overlay.StartCountdown(secs);
                 break;
@@ -242,6 +246,8 @@ public partial class App : System.Windows.Application
             undo = overlay.UndoCount,
             redo = overlay.RedoCount,
             board = overlay.IsBoardOn,
+            page = overlay.IsBoardOn ? overlay.BoardPage : 0,
+            pages = overlay.BoardPageCount,
             countdown = overlay.CountdownRunning ? overlay.CountdownSeconds : 0,
             files
         };
@@ -315,6 +321,7 @@ public partial class App : System.Windows.Application
         _keyboardHook.IsDrawing = () =>
             _overlayWindow is { IsDrawMode: true } o && o.CurrentTool != AnnotationTool.None;
         _keyboardHook.IsTyping = () => _overlayWindow?.IsTyping == true;
+        _keyboardHook.IsBoardOn = () => _overlayWindow?.IsBoardOn == true;
 
         // The hook only decides; the work is queued, never run inside Windows' hook call
         void Post(Action<OverlayWindow> work) =>
@@ -328,6 +335,7 @@ public partial class App : System.Windows.Application
         _keyboardHook.TimerVisibilityToggled += () => Post(o => o.ToggleTimerVisibility());
         _keyboardHook.CountdownRequested += s => Post(o => o.StartCountdown(s));
         _keyboardHook.BoardToggled += () => Post(o => o.ToggleBoard());
+        _keyboardHook.PageTurned += d => Post(o => o.TurnPage(d));
 
         // Shape tools
         _keyboardHook.ArrowToggled += () => Post(o => o.ToggleArrow());

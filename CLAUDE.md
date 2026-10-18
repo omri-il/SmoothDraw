@@ -43,6 +43,7 @@ call (Esc is the one exception: whether it is kept depends on its answer).
 |-----|--------|
 | F6 | **Thinking timer, 10 s, from anywhere.** Shift+F6 = 30 s, Ctrl+F6 = 60 s, Ctrl+Shift+F6 = clear the drawings (the pad's page 4 types these). The same length again stops it. Kept from other programs |
 | F5 | **The board, from anywhere**: on (and the pen) / off (back to the screen). Kept from other programs; Ctrl+F5 still reaches them |
+| PageDown / → , PageUp / ← | **On the board only:** the next / previous page (past the last = a new page). Elsewhere these keys are untouched |
 | F9 | Toggle draw mode, from anywhere (never F8 — that is OBS zoom-to-mouse since 2026-10-13; the two were swapped that day, F8 was this key before). Not kept from other programs |
 | F10 | Clear all (undoable) |
 | F11 | Laser pointer on/off — pressed again it goes back to the mouse, never to the pen (the screen would stay covered) |
@@ -108,6 +109,21 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
     point at them); only what is in them changes. A text being typed is finished and a shape or drag
     under way dropped first, as Clear does; laser strokes go. Clear and undo act on the one on show.
   - The camera look and the OBS remote are unchanged; the toolbar stays above the board.
+  - **Pages** (since 2026-10-18 later; Omri: "several screens to go through, like flipping pages"):
+    the board is a list of pages (`_pages`, `_page`), each a `Surface` with its own drawings and
+    undo, and `_screen` holds the screen's while the board is up. `TurnPage(±1)`: PageDown / → /
+    PageUp / ← while the board is up (`KeyboardHookService.IsBoardOn`; a text box being typed in
+    keeps the arrows), the toolbar's ◀ n/m ▶ (`PageGroup`, shown only on the board, before ✕), the
+    pipe's `page next` / `page prev`. Past the last page = a new empty page, **unless the page on
+    show is empty** (no pile of blank pages). Before the first = nothing. F5 off and on again opens
+    on the page you left. Pages live until SmoothDraw quits. The bar grows by the arrows (~113 DIP)
+    and is pulled back inside the screen if that pushes it past the right edge (`KeepInsideWorkArea`).
+  - **Checked 2026-10-18 on the laptop** (a Release build from the session, pipe + simulated mouse
+    and keys): the edge (a 150 ms touch = nothing; a rest = the bar at (599,0)-(2281,132) around the
+    mouse; kept on the bar; hidden 1.5 s after leaving; kept when drawing started, hidden when it
+    stopped) and the pages (a stroke on page 1; page 2 empty; PageUp back to page 1 with its ink;
+    → / PageDown; no new page from an empty one; F5 off/on opens on page 2; undo acts on the page on
+    show). ⏳ Not yet: a real click on the peeked bar, the installed build, the home PC.
 - **Checked 2026-10-18 on the laptop** (a Release build from the session, against OBS's own frame of
   the program scene): the timer at 8 s (amber) and 2 s (red), gone after; the board in OBS's frame
   with the camera circle on it and the timer top-right; F5 off = the screen back with the timer still
@@ -121,7 +137,7 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
   `THIRD-PARTY-NOTICES.md`). The active tool is a `#E9E8FF` pill with a `#3C34A8` icon;
   hover `#F0F0F5`. Order: grip · Mouse, Select · Pen, Highlighter, Laser, Eraser · Arrow,
   Rectangle, Circle, Text · **options slot** · 5 colours · Undo, Redo · Confetti (amber),
-  Clear (the bin turns red under the mouse) · ✕.
+  Clear (the bin turns red under the mouse) · (on the board only: ◀ page n/m ▶) · ✕.
   - Why it changed: confetti and delete were invisible. They were emoji `TextBlock`s, and
     WPF draws emoji in one colour: with no Foreground set, black on the near-black bar.
     **Never use emoji for toolbar icons.**
@@ -168,6 +184,16 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
 - ⚠️ **Both machines hide the dot since 2026-10-10** (`HideToolbarWhenIdle: true` in their
   settings.json, Settings below): stopping drawing hides the toolbar completely. The rest of
   this section is how the dot works when it is on.
+- **The top edge brings the bar** (since 2026-10-18, only with `HideToolbarWhenIdle`; Omri: "when I
+  move to the edge of the screen the mouse usually doesn't bring back the toolbar" — nothing did,
+  then). `OverlayWindow.OnEdgeCheck`, every 100 ms while not drawing: the mouse resting on the very
+  top row of a screen for 350 ms (`EdgeDwell`), no mouse button held, shows the bar at the top of
+  that screen's work area, centred on the mouse (`ToolbarWindow.PeekAtTop`). Away from the bar (and
+  the strip above it) for 800 ms (`EdgeLinger`) = hidden again, and the window put back as it was
+  (`EndPeek`). A tool picked on it = drawing starts and the bar stays there (`KeepPeek`). After a
+  peek ends, the mouse must leave the edge before the next one (`_edgeArmed`, no flapping). A
+  rest, not a touch: maximised windows have their tabs and title bars up there. Logged `Toolbar
+  peek at the top edge: bar (…)` / `Toolbar peek ended`.
 - **Mouse/Pointer** — exits draw mode, and the toolbar shrinks to a **42 px dot**
   (`HideToolbarWhenIdle` false, the default since 2026-09-28): white, a dark pencil, the ink
   colour as a badge. **Click the dot = pen, drag it = move it.** The dot replaced the OBS
@@ -334,7 +360,8 @@ a default. Before that day neither machine had a file.
 `CountdownPosition` (top-right / top-left / top-center / bottom-right / bottom-left / center),
 `CountdownSize` (170 DIP) and `BoardColor` (#121417) — see "The thinking timer and the board".
 - **No dot = drawing starts from F9**: the pad's small right knob press (davinci-automation
-  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), or F9 itself.
+  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), F9 itself, or the
+  bar brought by the top edge ("The dot" above).
   The toolbar shows while drawing and goes away when drawing stops.
 - How it was put there: the laptop through a one-off scheduled task (the MSIX redirect in
   "Build & Run"), the home PC over SSH; then SmoothDraw stopped and started again by its
@@ -379,7 +406,7 @@ instances, so a few callers at once never see "pipe busy".
 
 | Pipe | Commands | Reply |
 |---|---|---|
-| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `countdown <1-600>` (F6's timer, any length) | `{ok, drawing, tool, color, thickness, undo, redo, board, countdown, files}` (`undo` / `redo` = steps available; `countdown` = its seconds, 0 = none; `files` = what `snapshot` wrote, or where `dot` put the dot) |
+| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `page next` · `page prev` (the board's pages) · `countdown <1-600>` (F6's timer, any length) | `{ok, drawing, tool, color, thickness, undo, redo, board, page, pages, countdown, files}` (`undo` / `redo` = steps available; `page` = the board's page on show, 0 = no board; `pages` = how many; `countdown` = its seconds, 0 = none; `files` = what `snapshot` wrote, or where `dot` put the dot) |
 
 SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. Until
 2026-09-28 this one was `SmoothAnnotate.control`.
