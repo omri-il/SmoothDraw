@@ -56,6 +56,7 @@ public partial class ToolbarWindow : Window
     public event Action? UndoRequested;
     public event Action? RedoRequested;
     public event Action<int>? PageRequested; // -1 back, +1 forward (the board's pages)
+    public event Action<int>? CountdownRequested; // the thinking timer, its seconds (the hourglass)
 
     public ToolbarWindow()
     {
@@ -75,6 +76,9 @@ public partial class ToolbarWindow : Window
             { AnnotationTool.Circle, BtnCircle },
             { AnnotationTool.Text, BtnText },
         };
+
+        // The hourglass's choice closes with the bar
+        IsVisibleChanged += (_, _) => { if (!IsVisible) SetCountdownChoiceOpen(false); };
 
         SourceInitialized += (_, _) =>
         {
@@ -451,6 +455,13 @@ public partial class ToolbarWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
     private void ConfettiButton_Click(object sender, RoutedEventArgs e) => ConfettiRequested?.Invoke();
+    private void CountdownButton_Click(object sender, RoutedEventArgs e) =>
+        SetCountdownChoiceOpen(CountdownGroup.Visibility != Visibility.Visible);
+    private void CountdownChoice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string tag } && int.TryParse(tag, out int seconds))
+            CountdownRequested?.Invoke(seconds);
+    }
     private void TextSizeButton_Click(object sender, RoutedEventArgs e) => TextSizeCycled?.Invoke();
     private void ThicknessButton_Click(object sender, RoutedEventArgs e) => ThicknessCycled?.Invoke();
     private void ClearButton_Click(object sender, RoutedEventArgs e) => ClearRequested?.Invoke();
@@ -519,6 +530,24 @@ public partial class ToolbarWindow : Window
         BtnPageNext.ToolTip = page < count ? "Next page · PageDown / →" : "New page · PageDown / →";
     }
 
+    /// <summary>The hourglass's 10 / 30 / 60 beside it, or not. The bar grows by them, so it is
+    /// pulled back inside the screen once laid out, as for the page arrows.</summary>
+    private void SetCountdownChoiceOpen(bool open)
+    {
+        var want = open ? Visibility.Visible : Visibility.Collapsed;
+        ToolbarProps.SetIsActive(BtnCountdown, open);
+        if (CountdownGroup.Visibility == want) return;
+        CountdownGroup.Visibility = want;
+        if (open) Dispatcher.BeginInvoke(KeepInsideWorkArea, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>The thinking timer running with these seconds (0 = none): its chip is lit.</summary>
+    public void SetCountdown(int seconds)
+    {
+        foreach (var chip in new[] { BtnCountdown10, BtnCountdown30, BtnCountdown60 })
+            ToolbarProps.SetIsActive(chip, (string)chip.Tag == seconds.ToString());
+    }
+
     public void SetUndoRedo(bool canUndo, bool canRedo)
     {
         BtnUndo.IsEnabled = canUndo;
@@ -541,8 +570,10 @@ public partial class ToolbarWindow : Window
         try
         {
             void State(string name, bool bar, AnnotationTool tool, int color, int thickness = 1, int textSize = 1,
-                bool undo = false, bool redo = false)
+                bool undo = false, bool redo = false, int timer = -1)
             {
+                copy.SetCountdownChoiceOpen(timer >= 0);
+                copy.SetCountdown(Math.Max(timer, 0));
                 copy.MainContent.Visibility = bar ? Visibility.Visible : Visibility.Collapsed;
                 copy.MinimalButton.Visibility = bar ? Visibility.Collapsed : Visibility.Visible;
                 copy.SetActiveTool(tool);
@@ -560,6 +591,7 @@ public partial class ToolbarWindow : Window
             State("bar-eraser-yellow", true, AnnotationTool.Eraser, 5);
             State("bar-arrow-thick-white", true, AnnotationTool.Arrow, 4, thickness: 2, redo: true);
             State("bar-mouse-green-thin", true, AnnotationTool.None, 3, thickness: 0);
+            State("bar-timer-30", true, AnnotationTool.Pen, 2, timer: 30);
         }
         finally
         {

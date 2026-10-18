@@ -18,7 +18,7 @@ public class KeyboardHookService : IDisposable
 
     // The thinking timer's lengths: F6, Shift+F6 (the pad's ⏳ 30), Ctrl+F6 (the pad's ⏳ 60)
     public const int CountdownShort = 10, CountdownMid = 30, CountdownLong = 60;
-    private const uint VK_V = 0x56, VK_Y = 0x59, VK_Z = 0x5A;
+    private const uint VK_H = 0x48, VK_V = 0x56, VK_Y = 0x59, VK_Z = 0x5A;
 
     // Core tools
     public event Action? DrawModeToggled;
@@ -30,6 +30,9 @@ public class KeyboardHookService : IDisposable
     // From anywhere, like F9 (since 2026-10-18): the thinking timer (its seconds) and the board
     public event Action<int>? CountdownRequested;
     public event Action? BoardToggled;
+
+    // Ctrl+Alt+H from anywhere: the cursor ring (SmoothZoom's key until 2026-10-18; the pad's ◎ types it)
+    public event Action? RingToggled;
 
     // The board's pages: -1 back (PageUp / Left), +1 forward (PageDown / Right), while the board is up
     public event Action<int>? PageTurned;
@@ -142,7 +145,8 @@ public class KeyboardHookService : IDisposable
                 App.Log("F9 pressed -> DrawModeToggled");
                 DrawModeToggled?.Invoke();
             }
-            // The thinking timer and the board, from anywhere (Omri, 2026-10-18: F6 / F5). KEPT
+            // The thinking timer, the board and the ring, from anywhere (Omri, 2026-10-18: F6 / F5 /
+            // Ctrl+Alt+H). KEPT
             // from the app underneath (he chose that: F5 no longer refreshes a browser, F6 no
             // longer jumps to its address bar). Only these exact combinations: Ctrl+F5 (a hard
             // refresh), Alt+F6 and the rest still reach the app.
@@ -171,12 +175,15 @@ public class KeyboardHookService : IDisposable
         return User32.CallNextHookEx(_kbHookId, nCode, wParam, lParam);
     }
 
-    /// <summary>F5 / F6 and the pad's variants, or null. Plain F6 = 10 s, Shift+F6 = 30 s,
+    /// <summary>Ctrl+Alt+H (the ring), F5 / F6 and the pad's variants, or null. Plain F6 = 10 s, Shift+F6 = 30 s,
     /// Ctrl+F6 = 60 s, Ctrl+Shift+F6 = clear the drawings (the pad types the last three; its 🧹
     /// cannot use F10, which acts only while drawing and otherwise reaches the app in front),
     /// plain F5 = the board.</summary>
     private Action? GlobalKey(uint vk)
     {
+        // Ctrl+Alt+H, kept from the app in front as SmoothZoom kept it (Shift too is left alone)
+        if (vk == VK_H && _ctrlPressed && _altPressed && !_shiftPressed)
+            return () => { App.Log("Ctrl+Alt+H pressed -> RingToggled"); RingToggled?.Invoke(); };
         if (_altPressed) return null;
         if (vk == VK_F6 && _ctrlPressed && _shiftPressed)
             return () => { App.Log("Ctrl+Shift+F6 pressed -> ClearInk"); ClearInk?.Invoke(); };

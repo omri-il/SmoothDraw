@@ -28,4 +28,13 @@ public class AnnotationSettings
     public double CountdownSize { get; set; } = 170;
     // The board (F5): the page that covers the screen. Khan Academy's near-black by default.
     public string BoardColor { get; set; } = "#121417";
+    // The cursor ring (Ctrl+Alt+H, moved here from SmoothZoom 2026-10-18). Unset = SmoothZoom's
+    // own value from its settings.json (HighlightRingSize, HighlightThickness, HighlightColor,
+    // HighlightFill, ClickRipple), else 70 / 4 / #DCFFE632 / #30FFE632 / true — so the laptop's
+    // ring 60 came along without a word here.
+    public double? RingSize { get; set; }
+    public double? RingThickness { get; set; }
+    public string? RingColor { get; set; }
+    public string? RingFill { get; set; }
+    public bool? ClickRipple { get; set; }
 }

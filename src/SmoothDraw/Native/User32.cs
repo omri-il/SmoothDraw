@@ -9,6 +9,12 @@ public static class User32
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
+    // The cursor ring's click ripple (CursorRingService)
+    public delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool UnhookWindowsHookEx(IntPtr hhk);
@@ -23,6 +29,10 @@ public static class User32
     public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     public const int WH_KEYBOARD_LL = 13;
+    public const int WH_MOUSE_LL = 14;
+    public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_RBUTTONDOWN = 0x0204;
+    public const uint LLMHF_INJECTED = 0x00000001;
     public const int WM_KEYDOWN = 0x0100;
     public const int WM_KEYUP = 0x0101;
     public const int WM_SYSKEYDOWN = 0x0104;
@@ -123,6 +133,16 @@ public static class User32
         public RECT rcMonitor;
         public RECT rcWork;
         public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]

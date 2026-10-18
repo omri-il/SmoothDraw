@@ -1,20 +1,20 @@
 # SmoothDraw
 
 Transparent overlay for drawing on the screen while recording tutorials: pen, highlighter,
-laser, eraser, shapes, text, pasted images, undo/redo, confetti, a stopwatch, a thinking timer
-and a board. WPF / .NET 8,
+laser, eraser, shapes, text, pasted images, undo/redo, confetti, a stopwatch, a thinking timer,
+a board and the cursor ring (SmoothZoom's until 2026-10-18, "The cursor ring" below). WPF / .NET 8,
 Wacom pen and touch screen support. Omri calls it "Smooth Draw".
 
 Until 2026-09-28 it was **SmoothAnnotate**, inside the `smoothzoom` repo next to the
 cursor-ring app. It moved here with its history (`git filter-repo`); SmoothZoom stayed
-there. Why things are the way they are (dated incidents and decisions): `CHANGELOG.md`,
+there, until it was retired on 2026-10-18 (its ring moved here). Why things are the way they are (dated incidents and decisions): `CHANGELOG.md`,
 not auto-loaded. Entries before 2026-09-28 there cover both apps.
 
 ## Repo layout
 ```
 src/SmoothDraw/            the app (Structure below)
 src/Shared/ControlPipe.cs  the control pipe ("Control from other programs") — the SAME file
-                           is in the smoothzoom repo, compiled into SmoothZoom: change both
+                           is in the smoothzoom repo (SmoothZoom, retired 2026-10-18: nothing installs from there)
 deploy/                    publish.ps1 · install.ps1 · make_icons.py ("Install / update")
 assets/smoothdraw.ico      drawn by deploy/make_icons.py (white pencil on a red tile)
 tools/touch-test.ps1       touch / pen / undo / key checks without hands ("Testing without hands")
@@ -22,8 +22,8 @@ THIRD-PARTY-NOTICES.md     Tabler Icons (MIT), the toolbar's icons
 ```
 
 ## Hotkeys
-⚠️ **Only F9, F5 and F6 work in every program (F9 = F8 until 2026-10-13, see the table; F5 / F6 since
-2026-10-18, "The thinking timer and the board" below). Every other key below acts only while you are
+⚠️ **Only F9, F5, F6 and Ctrl+Alt+H work in every program (F9 = F8 until 2026-10-13, see the table; F5 / F6
+since 2026-10-18, "The thinking timer and the board" below; Ctrl+Alt+H since 2026-10-18, "The cursor ring"). Every other key below acts only while you are
 already drawing** (`KeyboardHookService.IsDrawing`, since 2026-09-28). Caught everywhere,
 they were ordinary keys in other programs: Ctrl+1 (browser tab) switched the pen on, and
 Ctrl+V with a screenshot on the clipboard pasted it onto the screen. The log showed both on
@@ -50,7 +50,7 @@ call (Esc is the one exception: whether it is kept depends on its answer).
 | Esc | Stop drawing (back to the mouse). While typing text, the first Esc finishes the text. Kept from the app underneath only when it stopped something |
 | F12 | Timer start/pause (double-tap = reset) |
 | Ctrl+Z | Undo |
-| Ctrl+Y, Ctrl+Shift+Z | Redo (never with Alt: Ctrl+Alt+Z is SmoothZoom's zoom) |
+| Ctrl+Y, Ctrl+Shift+Z | Redo (never with Alt: Ctrl+Alt+Z was SmoothZoom's zoom) |
 | Ctrl+0 | Mouse mode (click-through; the toolbar shrinks to its dot — see "The dot" below) |
 | Ctrl+1 | Pen |
 | Ctrl+2 | Highlighter |
@@ -65,6 +65,7 @@ call (Esc is the one exception: whether it is kept depends on its answer).
 | Ctrl+Alt+R | Rectangle tool |
 | Ctrl+Alt+O | Circle/Oval tool |
 | Ctrl+Alt+X | Text tool |
+| Ctrl+Alt+H | **The cursor ring on/off, from anywhere** (SmoothZoom's key until 2026-10-18; the pad's ◎ types it). Kept from other programs |
 | Ctrl+Alt+T | Timer show/hide |
 | Ctrl+Alt+1-5 | Colors: Red, Blue, Green, White, Yellow |
 
@@ -135,6 +136,30 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
   running. ⏳ Not yet: the board's drawings coming back on a second F5 with a real stroke (the one
   drawn during the test was cut off by the board closing mid-stroke), and the home PC.
 
+## The cursor ring (Ctrl+Alt+H, since 2026-10-18)
+Omri: "I don't use SmoothZoom; the only thing I want from it is the ring. Move it into SmoothDraw
+and we can say goodbye to SmoothZoom." Ported from SmoothZoom's `CursorHighlightService` as
+`Services/CursorRingService.cs`, looking and behaving the same; not the zoom, and not its OBS
+recording watcher: **the ring never comes on by itself.**
+- **On / off:** Ctrl+Alt+H from any program, drawing or not (`KeyboardHookService.GlobalKey`, kept
+  from the app in front as SmoothZoom kept it; the AKP03E's ◎ key types it, so keep that key), the
+  tray's "Cursor ring (Ctrl+Alt+H)" (ticked while on), the pipe's `ring toggle` / `ring on` /
+  `ring off` (the OBS remote's ◎). Every pipe reply carries `ring`. Logged `Ring on` / `Ring off`.
+- **What it is:** a yellow ring (`#DCFFE632`, 70 DIP, 4 thick, faint fill `#30FFE632`, a soft glow)
+  in a small topmost window of its own that follows the mouse every 16 ms. Click-through
+  (`WS_EX_TRANSPARENT`), never activated (`ShowActivated` false, `WS_EX_NOACTIVATE`), so it never
+  takes a click from the canvas, the toolbar or the app underneath. **Not** hidden from capture:
+  OBS's Display Capture records it, as it did from SmoothZoom. Once a second it goes back on top
+  (the board and the toolbar are topmost windows too).
+- **Click ripple:** left click = the ring's colour, right = red; grows to 2× and fades in 350 ms.
+  Its low-level mouse hook exists only while the ring is on. Clicks a program injects are skipped
+  (SmoothZoom's rule).
+- **Settings:** `RingSize`, `RingThickness`, `RingColor`, `RingFill`, `ClickRipple` in settings.json.
+  Each one unset = SmoothZoom's own value in `%APPDATA%\SmoothZoom\settings.json`
+  (`HighlightRingSize` …), else the defaults above. That is how the laptop's ring 60 came along
+  (60 at 200 % scaling comes out ~72 px in the video, like the home PC's 70; smoothzoom CLAUDE.md).
+  The log's `Ring: size …` line at start says which values it took.
+
 ## The toolbar
 - **Light bar** (since 2026-09-28, replacing the dark Excalidraw-style one): white, 1 px
   `#D6D6E0` border, radius 14, soft shadow. Dark `#3B3B46` line icons from **Tabler**
@@ -142,7 +167,16 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
   `THIRD-PARTY-NOTICES.md`). The active tool is a `#E9E8FF` pill with a `#3C34A8` icon;
   hover `#F0F0F5`. Order: grip · Mouse, Select · Pen, Highlighter, Laser, Eraser · Arrow,
   Rectangle, Circle, Text · **options slot** · 5 colours · Undo, Redo · Confetti (amber),
-  Clear (the bin turns red under the mouse) · (on the board only: ◀ page n/m ▶) · ✕.
+  Clear (the bin turns red under the mouse) · ⏳ (+ 10 30 60 when open) · (on the board only:
+  ◀ page n/m ▶) · ✕.
+- **⏳ the thinking timer** (since 2026-10-18; Omri: "a shortcut to the thinking timer … as a
+  button"): a Tabler `hourglass`, tooltip "טיימר חשיבה (F6)". A click opens 10 · 30 · 60 beside
+  it **inside the bar** (`CountdownGroup`), not a popup: a popup is a window of its own, which
+  would be recorded and would not be a hole in the hit layer (a finger tap would land on the
+  canvas). A pick = `StartCountdown`, exactly F6 / Shift+F6 / Ctrl+F6: the same one again while
+  it runs stops it. The running one is lit (`SetCountdown`, from `CountdownHud.Ended` when it
+  stops). The choice stays open until ⏳ again or the bar hides, so after a pick nothing slides
+  under the pointer; opening it grows the bar (pulled back inside the screen, as for the pages).
   - Why it changed: confetti and delete were invisible. They were emoji `TextBlock`s, and
     WPF draws emoji in one colour: with no Foreground set, black on the near-black bar.
     **Never use emoji for toolbar icons.**
@@ -309,6 +343,7 @@ src/SmoothDraw/
 │   ├── DrawingHistory.cs      # Undo / redo: the history and its steps
 │   ├── KeyboardHookService.cs # F9, F5/F6 (any program), F10-F12, Esc, Ctrl+0-8, Ctrl+V, Ctrl+Z/Y, Ctrl+Alt combos; what to keep from other programs
 │   ├── LaserService.cs        # Laser fade-out timer (single-stroke approach)
+│   ├── CursorRingService.cs   # The cursor ring (Ctrl+Alt+H) and its click ripple
 │   ├── StopwatchService.cs    # Timer with double-tap reset
 │   ├── ConfettiService.cs     # Particle physics confetti
 │   ├── OverlayService.cs      # Win32 click-through toggling, z-order, capture exclusion
@@ -365,6 +400,8 @@ a default. Before that day neither machine had a file.
 `HideToolbarWhenIdle` (code default false: the dot) — see "The dot" above.
 `CountdownPosition` (top-right / top-left / top-center / bottom-right / bottom-left / center),
 `CountdownSize` (170 DIP) and `BoardColor` (#121417) — see "The thinking timer and the board".
+`RingSize`, `RingThickness`, `RingColor`, `RingFill`, `ClickRipple` — see "The cursor ring" (unset =
+SmoothZoom's own values).
 - **No dot = drawing starts from F9**: the pad's small right knob press (davinci-automation
   CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), F9 itself, or the
   bar brought by the top edge ("The dot" above).
@@ -400,7 +437,7 @@ so "my finger doesn't draw" is answered there first.
 ## Control from other programs (OBS remote, Start menu, pen button, tests)
 **The OBS dashboard's remote drives this app again** (since 2026-10-18; Omri reversed
 2026-09-28's "I want to have a separation between the tools" with "I want it all from there").
-The remote's main screen has a row ◎ ring (SmoothZoom's `ring toggle`) · ✏️ pen · ➡️ arrow ·
+The remote's main screen has a row ◎ ring (`ring toggle`, SmoothZoom's pipe until 2026-10-18) · ✏️ pen · ➡️ arrow ·
 🔴 laser · ↶ undo · 🧹 clear, through OBS-dashboard's `smooth.py` (`tool pen` / `tool arrow` /
 `tool laser`, `tool none` to go back to the mouse, `undo`, `clear`). It works from his phone
 too, over Tailscale. The hotkeys, the dot, the tray, the Start menu and the pad work as before.
@@ -410,17 +447,17 @@ window (`PassThroughWindowTitle`, "Pen and touch"), so its buttons and REC / sto
 pressable.
 
 The app is controlled from outside through a **named pipe** (`src/Shared/ControlPipe.cs`,
-linked into the csproj; the same file is in the smoothzoom repo for SmoothZoom's pipe). One
+linked into the csproj; the same file is in the retired smoothzoom repo). One
 text command goes in and one JSON line comes back, and every reply carries the app's current
 state. Only the same Windows user can connect (`PipeOptions.CurrentUserOnly`). There are 4
 instances, so a few callers at once never see "pipe busy".
 
 | Pipe | Commands | Reply |
 |---|---|---|
-| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `page next` · `page prev` (the board's pages) · `countdown <1-600>` (F6's timer, any length) · `tool <name>` (`none` `pen` `highlighter` `laser` `eraser` `arrow` `rectangle` `circle` `text`) | `{ok, drawing, tool, color, thickness, undo, redo, board, page, pages, countdown, files}` (`undo` / `redo` = steps available; `page` = the board's page on show, 0 = no board; `pages` = how many; `countdown` = its seconds, 0 = none; `files` = what `snapshot` wrote, or where `dot` put the dot) |
+| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `page next` · `page prev` (the board's pages) · `countdown <1-600>` (F6's timer, any length) · `tool <name>` (`none` `pen` `highlighter` `laser` `eraser` `arrow` `rectangle` `circle` `text`) · `ring toggle` · `ring on` · `ring off` (the cursor ring, Ctrl+Alt+H) | `{ok, drawing, tool, color, thickness, undo, redo, board, page, pages, countdown, ring, files}` (`undo` / `redo` = steps available; `page` = the board's page on show, 0 = no board; `pages` = how many; `countdown` = its seconds, 0 = none; `ring` = the cursor ring on, `true` / `false`, in every reply; `files` = what `snapshot` wrote, or where `dot` put the dot) |
 
-SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. Until
-2026-09-28 this one was `SmoothAnnotate.control`.
+SmoothZoom's pipe (`SmoothZoom.control`) went with it on 2026-10-18: the ring's `ring …`
+commands are this pipe's now. Until 2026-09-28 this one was `SmoothAnnotate.control`.
 - **`draw toggle` is on/off, not F9's cycle.** It switches between pen and mouse. From the
   laser it goes to the pen, because the laser has its own switch (F11; the remote's laser
   button, until 2026-09-28) (`ToggleDrawOnOff`).
@@ -596,7 +633,9 @@ state on E: as well: `DOTNET_CLI_HOME=E:\tools\dotnet-home`.
   once, then `E:\tools\dotnet\dotnet.exe build src\SmoothDraw\SmoothDraw.csproj --no-restore`.
 
 ## Key Technical Details
-- **No hotkey conflicts:** SmoothZoom uses Ctrl+Alt, SmoothDraw uses F-keys + Ctrl+number (different patterns).
+- **Hotkeys:** F-keys + Ctrl+number, Ctrl+Alt+letters while drawing, and Ctrl+Alt+H (the ring) from
+  anywhere. SmoothZoom (Ctrl+Alt+Z zoom, Ctrl+Alt+H) is retired since 2026-10-18; a machine that
+  still runs it would catch Ctrl+Alt+H in both apps (the newer hook first, which keeps the key).
   ⚠️ **F8 belongs to OBS** (zoom-to-mouse, OBS-dashboard repo; F9 until 2026-10-13, when Omri
   swapped the two so the zoom sits beside F7 = the camera full / small) — never bind it here. F9 is
   passed on to other programs, so a key shared with another app fires both at once. F7 is the

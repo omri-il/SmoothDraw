@@ -39,6 +39,8 @@
     <Geometry x:Key="Icon.Confetti">M4 5h2 M5 4v2 M11.5 4l-.5 2 M18 5h2 M19 4v2 M15 9l-1 1 M18 13l2 -.5 M18 19h2 M19 18v2 M14 16.518l-6.518 -6.518l-4.39 9.58a1 1 0 0 0 1.329 1.329l9.579 -4.39</Geometry>
     <!-- trash -->
     <Geometry x:Key="Icon.Trash">M4 7l16 0 M10 11l0 6 M14 11l0 6 M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12 M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3</Geometry>
+    <!-- hourglass -->
+    <Geometry x:Key="Icon.Hourglass">M6.5 7h11 M6.5 17h11 M6 20v-2a6 6 0 1 1 12 0v2a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1 M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1</Geometry>
     <!-- x -->
     <Geometry x:Key="Icon.Close">M18 6l-12 12 M6 6l12 12</Geometry>
     <!-- chevron-left -->

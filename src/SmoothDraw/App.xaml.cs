@@ -21,6 +21,8 @@ public partial class App : System.Windows.Application
     private KeyboardHookService? _keyboardHook;
     private OverlayWindow? _overlayWindow;
     private ControlPipeServer? _control;
+    private CursorRingService? _ring;
+    private WinForms.ToolStripMenuItem? _ringMenuItem;
     private AnnotationSettings _settings = new();
 
     private static readonly string LogFile = AppIdentity.LogFile;
@@ -92,6 +94,8 @@ public partial class App : System.Windows.Application
             var stopwatchService = new StopwatchService();
             _overlayWindow.InitializeServices(laserService, stopwatchService);
             Log("Services initialized");
+
+            _ring = CreateRing(_settings);
 
             SetupTrayIcon();
             Log("Tray icon created");
@@ -205,10 +209,12 @@ public partial class App : System.Windows.Application
     /// pixels; for tests) · board toggle (F5) · page next · page prev (the board's pages) ·
     /// countdown &lt;1-600&gt; (F6's timer, seconds) · tool &lt;name&gt; (none, pen, highlighter,
     /// laser, eraser, arrow, rectangle, circle, text: picks it and switches drawing on, as the
-    /// toolbar does; none = the mouse. The OBS dashboard's remote, one button per tool).
+    /// toolbar does; none = the mouse. The OBS dashboard's remote, one button per tool) ·
+    /// ring toggle · ring on · ring off (the cursor ring, Ctrl+Alt+H).
     /// Every reply carries the current state: {ok, drawing, tool, color, thickness, undo,
-    /// redo, board, page, pages, countdown} (undo / redo = steps available; page = the board's
-    /// page on show, 1-based, 0 = no board; countdown = its seconds, 0 = none).
+    /// redo, board, page, pages, countdown, ring} (undo / redo = steps available; page = the
+    /// board's page on show, 1-based, 0 = no board; countdown = its seconds, 0 = none; ring =
+    /// the cursor ring on).
     /// </summary>
     private object HandleControl(string command)
     {
@@ -229,6 +235,9 @@ public partial class App : System.Windows.Application
             case "board toggle": overlay.ToggleBoard(); break;
             case "page next": overlay.TurnPage(+1); break;
             case "page prev": overlay.TurnPage(-1); break;
+            case "ring toggle": _ring?.Toggle(); break;
+            case "ring on": _ring?.SetActive(true); break;
+            case "ring off": _ring?.SetActive(false); break;
             case var c when c.StartsWith("countdown ") && int.TryParse(c[10..], out int secs) && secs is >= 1 and <= 600:
                 overlay.StartCountdown(secs);
                 break;
@@ -258,6 +267,7 @@ public partial class App : System.Windows.Application
             page = overlay.IsBoardOn ? overlay.BoardPage : 0,
             pages = overlay.BoardPageCount,
             countdown = overlay.CountdownRunning ? overlay.CountdownSeconds : 0,
+            ring = _ring?.IsActive ?? false,
             files
         };
     }
@@ -275,9 +285,59 @@ public partial class App : System.Windows.Application
         };
     }
 
+    // --- The cursor ring (SmoothZoom's until 2026-10-18) ---
+
+    /// <summary>Each value: this app's settings.json, else SmoothZoom's (the ring's old home, so
+    /// a machine's own ring size comes along), else the default.</summary>
+    private static CursorRingService CreateRing(AnnotationSettings s)
+    {
+        var ring = new CursorRingService();
+        var old = ReadSmoothZoomSettings();
+        double? OldNumber(string key) =>
+            old?.TryGetProperty(key, out var v) == true && v.TryGetDouble(out var d) ? d : null;
+        string? OldText(string key) =>
+            old?.TryGetProperty(key, out var v) == true && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+        bool? OldBool(string key) =>
+            old?.TryGetProperty(key, out var v) == true && v.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False ? v.GetBoolean() : null;
+        Color? ParseColor(string? text)
+        {
+            try { return text == null ? null : (Color)ColorConverter.ConvertFromString(text); }
+            catch { return null; }
+        }
+
+        ring.RingSize = s.RingSize ?? OldNumber("HighlightRingSize") ?? ring.RingSize;
+        ring.RingThickness = s.RingThickness ?? OldNumber("HighlightThickness") ?? ring.RingThickness;
+        ring.RingColor = ParseColor(s.RingColor) ?? ParseColor(OldText("HighlightColor")) ?? ring.RingColor;
+        ring.RingFill = ParseColor(s.RingFill) ?? ParseColor(OldText("HighlightFill")) ?? ring.RingFill;
+        ring.ClickRipple = s.ClickRipple ?? OldBool("ClickRipple") ?? ring.ClickRipple;
+        Log($"Ring: size {ring.RingSize}, thickness {ring.RingThickness}, colour {ring.RingColor}, " +
+            $"ripple {ring.ClickRipple}{(old != null ? " (unset values from SmoothZoom's settings.json)" : "")}");
+        return ring;
+    }
+
+    private static System.Text.Json.JsonElement? ReadSmoothZoomSettings()
+    {
+        var file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SmoothZoom", "settings.json");
+        try
+        {
+            if (!File.Exists(file)) return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+            return doc.RootElement.Clone();
+        }
+        catch (Exception ex)
+        {
+            Log($"Ring: could not read {file}: {ex.Message}");
+            return null;
+        }
+    }
+
     private void SetupTrayIcon()
     {
         var contextMenu = new WinForms.ContextMenuStrip();
+        _ringMenuItem = new WinForms.ToolStripMenuItem("Cursor ring (Ctrl+Alt+H)", null, (_, _) => _ring?.Toggle());
+        contextMenu.Items.Add(_ringMenuItem);
+        if (_ring != null) _ring.Changed += () => _ringMenuItem.Checked = _ring.IsActive;
+        contextMenu.Items.Add(new WinForms.ToolStripSeparator());
         contextMenu.Items.Add("Quit", null, OnQuitClicked);
 
         _trayIcon = new WinForms.NotifyIcon
@@ -344,6 +404,7 @@ public partial class App : System.Windows.Application
         _keyboardHook.TimerVisibilityToggled += () => Post(o => o.ToggleTimerVisibility());
         _keyboardHook.CountdownRequested += s => Post(o => o.StartCountdown(s));
         _keyboardHook.BoardToggled += () => Post(o => o.ToggleBoard());
+        _keyboardHook.RingToggled += () => Dispatcher.BeginInvoke(() => _ring?.Toggle());
         _keyboardHook.PageTurned += d => Post(o => o.TurnPage(d));
 
         // Shape tools
@@ -384,6 +445,7 @@ public partial class App : System.Windows.Application
             _trayIcon.Dispose();
         }
         _control?.Dispose();
+        _ring?.Dispose();
         _keyboardHook?.Dispose();
         _mutex?.Dispose();
         base.OnExit(e);

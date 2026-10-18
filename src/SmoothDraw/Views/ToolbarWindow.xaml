@@ -104,6 +104,15 @@
                 </Setter>
             </Style>
 
+            <!-- A number chip (the thinking timer's 10 / 30 / 60): a tool button with text -->
+            <Style x:Key="ChipBtn" TargetType="Button" BasedOn="{StaticResource ToolBtn}">
+                <Setter Property="Width" Value="30"/>
+                <Setter Property="ContentTemplate" Value="{x:Null}"/>
+                <Setter Property="FontFamily" Value="Segoe UI"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </Style>
+
             <Style x:Key="Separator" TargetType="Border">
                 <Setter Property="Width" Value="1"/>
                 <Setter Property="Margin" Value="5,8"/>
@@ -211,6 +220,23 @@
                             Content="{StaticResource Icon.Confetti}" Foreground="#F59F00" ToolTip="Confetti"/>
                     <Button x:Name="BtnClear" Style="{StaticResource ClearBtn}" Click="ClearButton_Click"
                             Content="{StaticResource Icon.Trash}" ToolTip="Clear all · F10"/>
+
+                    <!-- The thinking timer (F6): the hourglass opens 10 / 30 / 60 beside it, inside
+                         the bar (a popup would be a window of its own: recorded, and outside the hit
+                         layer's hole). They stay open until the hourglass again or the bar closes, so
+                         nothing slides under the pointer after a pick; the running one is lit, and
+                         it again stops it. -->
+                    <Border Style="{StaticResource Separator}"/>
+                    <Button x:Name="BtnCountdown" Style="{StaticResource ToolBtn}" Click="CountdownButton_Click"
+                            Content="{StaticResource Icon.Hourglass}" ToolTip="טיימר חשיבה (F6)"/>
+                    <StackPanel x:Name="CountdownGroup" Orientation="Horizontal" Visibility="Collapsed">
+                        <Button x:Name="BtnCountdown10" Style="{StaticResource ChipBtn}" Tag="10" Content="10"
+                                Click="CountdownChoice_Click" ToolTip="10 שניות · F6"/>
+                        <Button x:Name="BtnCountdown30" Style="{StaticResource ChipBtn}" Tag="30" Content="30"
+                                Click="CountdownChoice_Click" ToolTip="30 שניות · Shift+F6"/>
+                        <Button x:Name="BtnCountdown60" Style="{StaticResource ChipBtn}" Tag="60" Content="60"
+                                Click="CountdownChoice_Click" ToolTip="60 שניות · Ctrl+F6"/>
+                    </StackPanel>
 
                     <!-- The board's pages (F5): only while the board is up -->
                     <StackPanel x:Name="PageGroup" Orientation="Horizontal" Visibility="Collapsed">

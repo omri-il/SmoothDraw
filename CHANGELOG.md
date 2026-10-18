@@ -6,6 +6,15 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-18 (night, later) — the cursor ring moves in, ⏳ on the toolbar, SmoothZoom retired
+- Omri: "I don't use SmoothZoom; the only thing I want from it is the ring. Move it into SmoothDraw
+  and we can say goodbye to SmoothZoom", and "a shortcut to the thinking timer … as a button in
+  SmoothDraw". The ring was ported as it was (look, ripple, Ctrl+Alt+H, `ring toggle / on / off`),
+  without the zoom and without the OBS recording watcher (auto-on had been off since 2026-09-28).
+  Its settings fall back to SmoothZoom's settings.json, so each machine's own ring size comes along.
+- ⏳ opens 10 / 30 / 60 inside the bar rather than a popup: a popup is a window of its own, which
+  needs its own capture exclusion and is no hole in the hit layer, so a finger tap on it would draw.
+
 ## 2026-10-18 (night) — a cleaner arrow point
 - Omri: "the arrow's point doesn't look good" (a thick blue arrow). The shaft ran all the way to the
   tip with a flat end as wide as the stroke, while the head narrows to nothing there, so a stub of

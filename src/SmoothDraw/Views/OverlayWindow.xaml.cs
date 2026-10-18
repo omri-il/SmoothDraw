@@ -140,6 +140,7 @@ public partial class OverlayWindow : Window
         _toolbar.RedoRequested += () => Redo();
         _toolbar.ConfettiRequested += TriggerConfetti;
         _toolbar.PageRequested += TurnPage;
+        _toolbar.CountdownRequested += StartCountdown;
         // It starts on what you picked last
         _toolbar.SetActiveColor(_pen.Color);
         _toolbar.SetThickness(_pen.Thickness);
@@ -504,6 +505,7 @@ public partial class OverlayWindow : Window
         {
             _countdown = new CountdownHud(Math.Clamp(_settings.CountdownSize, 80, 600));
             CountdownHost.Children.Add(_countdown);
+            _countdown.Ended += () => _toolbar?.SetCountdown(0);
         }
         if (_countdown.IsRunning && _countdown.Seconds == seconds)
         {
@@ -518,6 +520,7 @@ public partial class OverlayWindow : Window
             RepositionToCurrentMonitor();
         PlaceCountdown();
         _countdown.Start(seconds);
+        _toolbar?.SetCountdown(seconds);
         App.Log($"Countdown {seconds}s: started");
         ShowModeIndicator($"⏳ {seconds}");
     }

@@ -46,6 +46,8 @@ public sealed class CountdownHud : Grid
     public bool IsRunning { get; private set; }
     /// <summary>The seconds this countdown was started with (0 when none).</summary>
     public int Seconds { get; private set; }
+    /// <summary>It stopped running: done (after its flash) or stopped early.</summary>
+    public event Action? Ended;
 
     public CountdownHud(double size)
     {
@@ -117,6 +119,7 @@ public sealed class CountdownHud : Grid
         IsRunning = false;
         Seconds = 0;
         Hide(CancelMs);
+        Ended?.Invoke();
     }
 
     private void OnFrame(object? sender, EventArgs e)
@@ -183,6 +186,7 @@ public sealed class CountdownHud : Grid
             IsRunning = false;
             Seconds = 0;
             Hide(FadeOutMs);
+            Ended?.Invoke();
         };
         BeginAnimation(OpacityProperty, blink);
     }
