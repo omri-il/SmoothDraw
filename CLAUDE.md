@@ -123,7 +123,12 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
     mouse; kept on the bar; hidden 1.5 s after leaving; kept when drawing started, hidden when it
     stopped) and the pages (a stroke on page 1; page 2 empty; PageUp back to page 1 with its ink;
     → / PageDown; no new page from an empty one; F5 off/on opens on page 2; undo acts on the page on
-    show). ⏳ Not yet: a real click on the peeked bar, the installed build, the home PC.
+    show). ⏳ Not yet: a real click on the peeked bar (drawing was started through the pipe).
+  - **Installed 2026-10-18 ~17:00 on both machines** (build of 4420e91): the laptop through a
+    one-off scheduled task (⚠️ on battery, a task with default settings sits "Queued" and never
+    starts: give it `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`), the home PC over SSH
+    (its first build with the timer and the board too). Each `status` reply carried `page` /
+    `pages`; both at Normal priority, no CodeIntegrity 3077 on the laptop.
 - **Checked 2026-10-18 on the laptop** (a Release build from the session, against OBS's own frame of
   the program scene): the timer at 8 s (amber) and 2 s (red), gone after; the board in OBS's frame
   with the camera circle on it and the timer top-right; F5 off = the screen back with the timer still
