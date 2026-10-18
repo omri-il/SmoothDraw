@@ -14,6 +14,10 @@ entries cover both apps.
   Its settings fall back to SmoothZoom's settings.json, so each machine's own ring size comes along.
 - ⏳ opens 10 / 30 / 60 inside the bar rather than a popup: a popup is a window of its own, which
   needs its own capture exclusion and is no hole in the hit layer, so a finger tap on it would draw.
+- SmoothZoom was then removed from the laptop with Omri's OK: its logon task "SmoothTools", its
+  folder `%LOCALAPPDATA%\Programs\SmoothTools` and its Start-menu folder. Its
+  `%APPDATA%\SmoothZoom\settings.json` was kept (the ring reads its size 60 there). It had not run
+  there since Smart App Control blocked it (2026-10-10). The home PC still has it.
 
 ## 2026-10-18 (night) — a cleaner arrow point
 - Omri: "the arrow's point doesn't look good" (a thick blue arrow). The shaft ran all the way to the
