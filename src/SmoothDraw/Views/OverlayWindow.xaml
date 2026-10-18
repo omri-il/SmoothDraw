@@ -11,6 +11,13 @@
         ResizeMode="NoResize">
 
     <Grid>
+        <!-- The board (F5): an empty page over the whole screen, under the drawing. Its
+             colour is the settings' BoardColor -->
+        <Rectangle x:Name="Board"
+                   Fill="#121417"
+                   IsHitTestVisible="False"
+                   Visibility="Collapsed"/>
+
         <!-- Ink drawing layer (Pen, Highlighter, Eraser, Laser) -->
         <local:PenInkCanvas x:Name="DrawCanvas"
                    Background="Transparent"
@@ -49,6 +56,10 @@
                 </TextBlock.Effect>
             </TextBlock>
         </Border>
+
+        <!-- The thinking timer (F6), over the drawing and the board; CountdownHud is added
+             here in code, placed by the settings' CountdownPosition -->
+        <Grid x:Name="CountdownHost" IsHitTestVisible="False"/>
 
         <!-- Confetti layer (on top of everything) -->
         <Canvas x:Name="ConfettiCanvas"

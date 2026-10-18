@@ -55,8 +55,26 @@ public partial class OverlayWindow : Window
     // even by Clear: an arrow brought back by undo must still move as one piece.
     private readonly Dictionary<UIElement, UIElement> _arrowPairs = new();
 
-    // Undo / redo (Services/DrawingHistory.cs)
-    private readonly DrawingHistory _history = new();
+    // Undo / redo (Services/DrawingHistory.cs). The screen and the board (F5) each keep
+    // their own: the one not on show waits in _away with its drawings.
+    private DrawingHistory _history = new();
+
+    // The board (F5): an empty page over the screen with its own drawings. What is not on
+    // show (the board's drawings, or the screen's while the board is up) waits here.
+    private sealed class Surface
+    {
+        public List<Stroke> Strokes = new();
+        public List<UIElement> Shapes = new();
+        public DrawingHistory History = new();
+    }
+    private Surface _away = new();
+    private bool _boardOn;
+    private bool _drawingBeforeBoard;
+
+    // The thinking timer (F6), made on its first use
+    private CountdownHud? _countdown;
+    // The taskbar's room on the overlay's monitor (DIP), so a timer at the bottom sits above it
+    private Thickness _workInset;
     // Selected ink's points before a move or resize, until it has happened
     private List<(Stroke Stroke, StylusPointCollection Before)>? _transformBefore;
 
@@ -121,7 +139,11 @@ public partial class OverlayWindow : Window
         _toolbar.SetActiveColor(_pen.Color);
         _toolbar.SetThickness(_pen.Thickness);
         _toolbar.SetTextSize(_pen.TextSize);
-        _history.Changed += () => _toolbar?.SetUndoRedo(_history.UndoCount > 0, _history.RedoCount > 0);
+        // Both histories report; the toolbar shows the one on show
+        _history.Changed += ShowUndoRedo;
+        _away.History.Changed += ShowUndoRedo;
+        try { Board.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_settings.BoardColor)); }
+        catch { App.Log($"BoardColor '{_settings.BoardColor}' is not a colour: the default board"); }
         // ✕ stops drawing, exactly like the toolbar's mouse button. It used to quit the
         // whole app, which left the OBS remote's drawing buttons grey (twice on the laptop,
         // 2026-09-27). Quitting is the tray icon's "Quit".
@@ -390,6 +412,131 @@ public partial class OverlayWindow : Window
             : Visibility.Visible;
     }
 
+    // --- The thinking timer (F6 = 10 s, Shift+F6 = 30 s, Ctrl+F6 = 60 s; the pad's ⏳ keys) ---
+
+    public bool CountdownRunning => _countdown?.IsRunning == true;
+    public int CountdownSeconds => _countdown?.Seconds ?? 0;
+
+    /// <summary>Starts a countdown; the same length again while it runs stops it, another
+    /// length starts over with that one. Works whether you draw or not: the overlay is
+    /// click-through then, so the timer sits over the apps without taking a click.</summary>
+    public void StartCountdown(int seconds)
+    {
+        if (_countdown == null)
+        {
+            _countdown = new CountdownHud(Math.Clamp(_settings.CountdownSize, 80, 600));
+            CountdownHost.Children.Add(_countdown);
+        }
+        if (_countdown.IsRunning && _countdown.Seconds == seconds)
+        {
+            _countdown.Cancel();
+            App.Log($"Countdown {seconds}s: stopped early");
+            ShowModeIndicator("TIMER OFF");
+            return;
+        }
+        // On the screen you are working on. Not while drawing (the overlay is there already),
+        // nor over drawings left on the screen, which would move with the overlay.
+        if (!_isDrawMode && !_countdown.IsRunning && DrawCanvas.Strokes.Count == 0 && ShapeCanvas.Children.Count == 0)
+            RepositionToCurrentMonitor();
+        PlaceCountdown();
+        _countdown.Start(seconds);
+        App.Log($"Countdown {seconds}s: started");
+        ShowModeIndicator($"⏳ {seconds}");
+    }
+
+    private void PlaceCountdown()
+    {
+        if (_countdown == null) return;
+        const double m = 36; // from the screen's edge (above the taskbar at the bottom)
+        var w = _workInset;
+        string pos = (_settings.CountdownPosition ?? "").Trim().ToLowerInvariant();
+        bool top = !pos.StartsWith("bottom"), center = pos == "center";
+        _countdown.VerticalAlignment = center ? VerticalAlignment.Center : top ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+        _countdown.HorizontalAlignment = center || pos.EndsWith("center") ? System.Windows.HorizontalAlignment.Center
+            : pos.EndsWith("left") ? System.Windows.HorizontalAlignment.Left : System.Windows.HorizontalAlignment.Right;
+        _countdown.Margin = center ? new Thickness(0)
+            : new Thickness(w.Left + m, top ? w.Top + m : 0, w.Right + m, top ? 0 : w.Bottom + m);
+    }
+
+    // --- The board (F5): an empty page over the screen, with its own drawings ---
+
+    public bool IsBoardOn => _boardOn;
+
+    /// <summary>F5: up = the page covers the screen and the pen is on (the board's own
+    /// drawings from last time come back); again = the screen and its drawings come back,
+    /// and drawing stops if it was off before. Stopping drawing (Esc, the mouse button, F9's
+    /// cycle) also takes the board down: a page you cannot draw on would only hide the screen.</summary>
+    public void ToggleBoard()
+    {
+        if (_boardOn)
+        {
+            HideBoard();
+            if (!_drawingBeforeBoard) ExitDrawMode();
+            ShowModeIndicator("SCREEN");
+            return;
+        }
+        _drawingBeforeBoard = _isDrawMode && _currentTool != AnnotationTool.None;
+        SwapSurface();
+        _boardOn = true;
+        Board.Visibility = Visibility.Visible;
+        if (!_drawingBeforeBoard)
+        {
+            _toolbar?.ExpandFromMinimal();
+            EnterDrawMode();
+            SetTool(AnnotationTool.Pen);
+        }
+        App.Log("Board up");
+        ShowModeIndicator("BOARD");
+    }
+
+    private void HideBoard()
+    {
+        if (!_boardOn) return;
+        _boardOn = false;
+        SwapSurface();
+        Board.Visibility = Visibility.Collapsed;
+        App.Log("Board down");
+    }
+
+    /// <summary>Puts away what is on show (its drawings and its undo history) and brings out
+    /// what was away. Anything under way is finished or dropped first, as Clear does; the
+    /// laser's strokes go (they were fading anyway).</summary>
+    private void SwapSurface()
+    {
+        CommitActiveTextBox();
+        if (_isDrawingShape && _shapePreview != null) ShapeCanvas.Children.Remove(_shapePreview);
+        _shapePreview = null;
+        _isDrawingShape = false;
+        _draggedElement = null;
+        if (ShapeCanvas.IsMouseCaptured) ShapeCanvas.ReleaseMouseCapture();
+        ClearInkSelection();
+        _history.FlushGroup();
+
+        var strokes = DrawCanvas.Strokes;
+        var shown = new Surface
+        {
+            Strokes = strokes.Where(s => _laserService?.IsLaserStroke(s) != true).ToList(),
+            Shapes = ShapeCanvas.Children.Cast<UIElement>().ToList(),
+            History = _history
+        };
+        strokes.Clear();
+        ShapeCanvas.Children.Clear();
+        _laserService?.ClearTracking();
+
+        // The same collections stay (the history's steps point at them); only what is in them changes
+        foreach (var s in _away.Strokes) strokes.Add(s);
+        foreach (var el in _away.Shapes)
+        {
+            ShapeCanvas.Children.Add(el);
+            if (_currentTool == AnnotationTool.Select) el.IsHitTestVisible = true;
+        }
+        _history = _away.History;
+        _away = shown;
+        ShowUndoRedo();
+    }
+
+    private void ShowUndoRedo() => _toolbar?.SetUndoRedo(_history.UndoCount > 0, _history.RedoCount > 0);
+
     // --- Clear ---
 
     /// <summary>Toolbar, F10, pipe. Undoable: one step brings everything back (not the
@@ -565,6 +712,7 @@ public partial class OverlayWindow : Window
 
     private void ExitDrawMode()
     {
+        HideBoard();
         _isDrawMode = false;
         _isOverToolbar = false;
         _toolbarHitTimer.Stop();
@@ -608,6 +756,9 @@ public partial class OverlayWindow : Window
             Top = mi.rcMonitor.Top * dpiY;
             Width = (mi.rcMonitor.Right - mi.rcMonitor.Left) * dpiX;
             Height = (mi.rcMonitor.Bottom - mi.rcMonitor.Top) * dpiY;
+            _workInset = new Thickness(
+                (mi.rcWork.Left - mi.rcMonitor.Left) * dpiX, (mi.rcWork.Top - mi.rcMonitor.Top) * dpiY,
+                (mi.rcMonitor.Right - mi.rcWork.Right) * dpiX, (mi.rcMonitor.Bottom - mi.rcWork.Bottom) * dpiY);
         }
     }
 

@@ -1,7 +1,8 @@
 # SmoothDraw
 
 Transparent overlay for drawing on the screen while recording tutorials: pen, highlighter,
-laser, eraser, shapes, text, pasted images, undo/redo, confetti, a timer. WPF / .NET 8,
+laser, eraser, shapes, text, pasted images, undo/redo, confetti, a stopwatch, a thinking timer
+and a board. WPF / .NET 8,
 Wacom pen and touch screen support. Omri calls it "Smooth Draw".
 
 Until 2026-09-28 it was **SmoothAnnotate**, inside the `smoothzoom` repo next to the
@@ -21,7 +22,8 @@ THIRD-PARTY-NOTICES.md     Tabler Icons (MIT), the toolbar's icons
 ```
 
 ## Hotkeys
-⚠️ **Only F9 works in every program (F8 until 2026-10-13, see the table). Every other key below acts only while you are
+⚠️ **Only F9, F5 and F6 work in every program (F9 = F8 until 2026-10-13, see the table; F5 / F6 since
+2026-10-18, "The thinking timer and the board" below). Every other key below acts only while you are
 already drawing** (`KeyboardHookService.IsDrawing`, since 2026-09-28). Caught everywhere,
 they were ordinary keys in other programs: Ctrl+1 (browser tab) switched the pen on, and
 Ctrl+V with a screenshot on the clipboard pasted it onto the screen. The log showed both on
@@ -39,6 +41,8 @@ call (Esc is the one exception: whether it is kept depends on its answer).
 
 | Key | Action |
 |-----|--------|
+| F6 | **Thinking timer, 10 s, from anywhere.** Shift+F6 = 30 s, Ctrl+F6 = 60 s, Ctrl+Shift+F6 = clear the drawings (the pad's page 4 types these). The same length again stops it. Kept from other programs |
+| F5 | **The board, from anywhere**: on (and the pen) / off (back to the screen). Kept from other programs; Ctrl+F5 still reaches them |
 | F9 | Toggle draw mode, from anywhere (never F8 — that is OBS zoom-to-mouse since 2026-10-13; the two were swapped that day, F8 was this key before). Not kept from other programs |
 | F10 | Clear all (undoable) |
 | F11 | Laser pointer on/off — pressed again it goes back to the mouse, never to the pen (the screen would stay covered) |
@@ -62,6 +66,53 @@ call (Esc is the one exception: whether it is kept depends on its answer).
 | Ctrl+Alt+X | Text tool |
 | Ctrl+Alt+T | Timer show/hide |
 | Ctrl+Alt+1-5 | Colors: Red, Blue, Green, White, Yellow |
+
+## The thinking timer and the board (since 2026-10-18)
+Omri: "a timer that shows on the screen and goes away — say I want them to think about something for
+10 seconds", and "a whiteboard in the style of Khan Academy or Excalidraw". Asked, he chose: on the REAL
+screen (so a recording AND a Zoom screen share both show it, which an OBS source would not), a ring that
+empties with the number inside, F6 / F5, the pad, and no button on the OBS remote (the tools stay
+apart). Both live on the overlay, which OBS's Display Capture records like the drawings.
+- **The keys** (`KeyboardHookService.GlobalKey`): F6 = 10 s, Shift+F6 = 30 s, Ctrl+F6 = 60 s,
+  Ctrl+Shift+F6 = clear the drawings (`ClearAllStrokes`, undoable), F5 = the board. They act from any
+  program, drawing or not, and are KEPT from it (he accepted that: F5 no longer refreshes a browser, F6
+  no longer jumps to its address bar). With Alt they are left alone, and so is Ctrl+F5 (a hard refresh).
+  A key held down acts once (its repeats are swallowed until the key-up). The modifiers count in
+  their plain codes too (VK_SHIFT 0x10 …): a key typed by a program (the pad's `press_key.py`,
+  `keybd_event`) may come that way. Checked 2026-10-18: press_key.py's Shift+F6 / Ctrl+F6 / F6 /
+  Ctrl+Shift+F6 reached it as 30 s / 60 s / 10 s / clear, and Shift+F6 twice stopped the 30 s.
+- **The pad:** page 4 of the AKP03E's "Default" profile, in a meeting too (davinci-automation
+  `generate_deck.py` `TEACH_KEYS`): ⏳ 10 / 30 / 60 · 🖊 board · ✏ drawing (F9) · 🧹 clear
+  (Ctrl+Shift+F6, never F10: F10 acts only while drawing and otherwise reaches the app in front).
+  Change those keys in both repos together.
+- **The timer** (`Views/CountdownHud.cs`, in the overlay's `CountdownHost` over the drawings and the
+  board): a dark disc, an amber ring from 12 o'clock that shrinks back as time runs out (drawn every
+  frame on `CompositionTarget.Rendering`, real elapsed time), the seconds in the middle. The last 3
+  turn the ring red and each pops. At zero it flashes twice and fades away (~1.1 s). **Never a sound**
+  (anything played lands in the recording, OBS-dashboard CLAUDE.md). The same length again = it fades
+  out at once; another length = it starts over with that one. Measured 2026-10-18: 10 s started →
+  done in 10.000 s (the log's `Countdown 10s: started / done`).
+  - **Where:** `CountdownPosition` (default top-right, 36 DIP in from the edges, above the taskbar at
+    the bottom: the monitor's work area), `CountdownSize` 170 DIP. On the screen the cursor is on: the
+    overlay moves there first unless you are drawing or drawings are left on the screen (they would
+    move with it).
+  - It is on the real screen, so OBS's F8 zoom crops it like everything else: zoomed in away from the
+    corner, the video does not show it.
+- **The board** (`OverlayWindow.ToggleBoard`): a rectangle of `BoardColor` (#121417, Khan Academy's
+  near-black) under the ink, over the whole monitor, and the pen on. F5 again = the screen and its
+  drawings come back, and drawing stops if it was off before the board. Stopping drawing any other way
+  (Esc, the toolbar's mouse, F9's cycle back to off) takes the board down too: a page you cannot draw
+  on would only hide the screen, and the overlay is click-through then.
+  - **Two surfaces:** the board's drawings and the screen's are kept apart, each with its own undo
+    history (`Surface`, `SwapSurface`). The canvas keeps the SAME collections (the history's steps
+    point at them); only what is in them changes. A text being typed is finished and a shape or drag
+    under way dropped first, as Clear does; laser strokes go. Clear and undo act on the one on show.
+  - The camera look and the OBS remote are unchanged; the toolbar stays above the board.
+- **Checked 2026-10-18 on the laptop** (a Release build from the session, against OBS's own frame of
+  the program scene): the timer at 8 s (amber) and 2 s (red), gone after; the board in OBS's frame
+  with the camera circle on it and the timer top-right; F5 off = the screen back with the timer still
+  running. ⏳ Not yet: the board's drawings coming back on a second F5 with a real stroke (the one
+  drawn during the test was cut off by the board closing mid-stroke), and the home PC.
 
 ## The toolbar
 - **Light bar** (since 2026-09-28, replacing the dark Excalidraw-style one): white, 1 px
@@ -225,7 +276,7 @@ src/SmoothDraw/
 │   └── Kernel32.cs            # P/Invoke: GetModuleHandle
 ├── Services/
 │   ├── DrawingHistory.cs      # Undo / redo: the history and its steps
-│   ├── KeyboardHookService.cs # F9, F10-F12, Esc, Ctrl+0-8, Ctrl+V, Ctrl+Z/Y, Ctrl+Alt combos; what to keep from other programs
+│   ├── KeyboardHookService.cs # F9, F5/F6 (any program), F10-F12, Esc, Ctrl+0-8, Ctrl+V, Ctrl+Z/Y, Ctrl+Alt combos; what to keep from other programs
 │   ├── LaserService.cs        # Laser fade-out timer (single-stroke approach)
 │   ├── StopwatchService.cs    # Timer with double-tap reset
 │   ├── ConfettiService.cs     # Particle physics confetti
@@ -233,7 +284,8 @@ src/SmoothDraw/
 │   ├── PenStateService.cs     # pen.json
 │   └── SettingsService.cs     # JSON persistence
 └── Views/
-    ├── OverlayWindow.xaml(.cs)  # Fullscreen transparent overlay (InkCanvas + ShapeCanvas + ConfettiCanvas)
+    ├── OverlayWindow.xaml(.cs)  # Fullscreen transparent overlay (Board + InkCanvas + ShapeCanvas + CountdownHost + ConfettiCanvas); the board's swap
+    ├── CountdownHud.cs          # The thinking timer's ring (F6)
     ├── PenInkCanvas.cs          # InkCanvas that ignores touches while the pen is near (IgnoreTouchNearPen)
     ├── ToolbarWindow.xaml(.cs)  # The light toolbar and its dot; placement; snapshots
     ├── ToolbarProps.cs          # IsActive, for the button styles
@@ -279,6 +331,8 @@ is still the code default: a missing key keeps its default when the file is read
 app itself saved would pin every value at the time it was saved — re-check before relying on
 a default. Before that day neither machine had a file.
 `HideToolbarWhenIdle` (code default false: the dot) — see "The dot" above.
+`CountdownPosition` (top-right / top-left / top-center / bottom-right / bottom-left / center),
+`CountdownSize` (170 DIP) and `BoardColor` (#121417) — see "The thinking timer and the board".
 - **No dot = drawing starts from F9**: the pad's small right knob press (davinci-automation
   CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), or F9 itself.
   The toolbar shows while drawing and goes away when drawing stops.
@@ -325,7 +379,7 @@ instances, so a few callers at once never see "pipe busy".
 
 | Pipe | Commands | Reply |
 |---|---|---|
-| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` | `{ok, drawing, tool, color, thickness, undo, redo, files}` (`undo` / `redo` = steps available; `files` = what `snapshot` wrote, or where `dot` put the dot) |
+| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `countdown <1-600>` (F6's timer, any length) | `{ok, drawing, tool, color, thickness, undo, redo, board, countdown, files}` (`undo` / `redo` = steps available; `countdown` = its seconds, 0 = none; `files` = what `snapshot` wrote, or where `dot` put the dot) |
 
 SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. Until
 2026-09-28 this one was `SmoothAnnotate.control`.
@@ -505,7 +559,7 @@ state on E: as well: `DOTNET_CLI_HOME=E:\tools\dotnet-home`.
   ⚠️ **F8 belongs to OBS** (zoom-to-mouse, OBS-dashboard repo; F9 until 2026-10-13, when Omri
   swapped the two so the zoom sits beside F7 = the camera full / small) — never bind it here. F9 is
   passed on to other programs, so a key shared with another app fires both at once. F7 is the
-  OBS dashboard's too.
+  OBS dashboard's too. F5 and F6 are this app's from any program since 2026-10-18 (kept from them).
 
 ## Install / update (laptop + home PC)
 Its own install, fully apart from SmoothZoom's (Omri: "a separation between the tools"):

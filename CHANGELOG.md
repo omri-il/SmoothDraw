@@ -6,6 +6,19 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-18 — the thinking timer (F6) and the board (F5)
+- Omri asked for "a timer that shows on the screen and goes away" (the class thinks for 10 seconds)
+  and a whiteboard "in the style of Khan Academy or Excalidraw". Asked with mockups, he chose: on the
+  real screen over an OBS-only overlay (a Zoom share shows it too), a ring that empties with the number
+  inside over a big number or a small corner clock, the board inside SmoothDraw (black) over
+  Excalidraw, F6 / F5 (accepting that a browser loses its refresh / address-bar keys), the pad, and no
+  button on the OBS remote, which would have tied the dashboard to this app again (2026-09-28's
+  separation). On the pad: a new page 4 (pages 2 and 3 were full), with ✏ and 🧹 in its two spare keys.
+- The existing F12 stopwatch counts up and stays on screen until hidden, so the timer is new
+  (`CountdownHud`), not a mode of it.
+- 🧹 on the pad sends Ctrl+Shift+F6, not F10: F10 is a drawing-only key, and when not drawing it went
+  on to the app in front (a browser's menu).
+
 ## 2026-10-13 — drawing moves to F9 (F8 is OBS's zoom now)
 - Omri, setting up live editing in OBS (the camera full / small on F7, OBS-dashboard): he wanted
   the zoom to the mouse on F8, beside F7, and chose to swap the two keys. Drawing's toggle is

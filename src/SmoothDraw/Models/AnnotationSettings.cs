@@ -21,4 +21,11 @@ public class AnnotationSettings
     // While drawing, clicks over this window go to it, not to the canvas — the OBS
     // dashboard's remote, so REC / stop stay pressable while you draw.
     public string PassThroughWindowTitle { get; set; } = "מרכז השליטה של OBS";
+    // The thinking timer (F6): where on the screen and how big (DIP). Positions: top-right,
+    // top-left, top-center, bottom-right, bottom-left, center. Bottom is above the taskbar:
+    // OBS crops the taskbar out of every recording.
+    public string CountdownPosition { get; set; } = "top-right";
+    public double CountdownSize { get; set; } = 170;
+    // The board (F5): the page that covers the screen. Khan Academy's near-black by default.
+    public string BoardColor { get; set; } = "#121417";
 }

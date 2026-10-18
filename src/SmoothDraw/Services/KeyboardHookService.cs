@@ -14,7 +14,10 @@ public class KeyboardHookService : IDisposable
     private bool _altPressed;
     private bool _shiftPressed;
 
-    private const uint VK_ESCAPE = 0x1B, VK_F9 = 0x78, VK_F10 = 0x79, VK_F11 = 0x7A, VK_F12 = 0x7B;
+    private const uint VK_ESCAPE = 0x1B, VK_F5 = 0x74, VK_F6 = 0x75, VK_F9 = 0x78, VK_F10 = 0x79, VK_F11 = 0x7A, VK_F12 = 0x7B;
+
+    // The thinking timer's lengths: F6, Shift+F6 (the pad's ⏳ 30), Ctrl+F6 (the pad's ⏳ 60)
+    public const int CountdownShort = 10, CountdownMid = 30, CountdownLong = 60;
     private const uint VK_V = 0x56, VK_Y = 0x59, VK_Z = 0x5A;
 
     // Core tools
@@ -23,6 +26,10 @@ public class KeyboardHookService : IDisposable
     public event Action? LaserToggled;
     public event Action? TimerToggled;
     public event Action? TimerVisibilityToggled;
+
+    // From anywhere, like F9 (since 2026-10-18): the thinking timer (its seconds) and the board
+    public event Action<int>? CountdownRequested;
+    public event Action? BoardToggled;
 
     // Shape tools
     public event Action? ArrowToggled;
@@ -93,16 +100,17 @@ public class KeyboardHookService : IDisposable
             bool isKeyDown = wParam == User32.WM_KEYDOWN || wParam == User32.WM_SYSKEYDOWN;
             uint vk = kbd.vkCode;
 
-            // Track modifier state
+            // Track modifier state. The plain codes (0x10-0x12) too: a key typed by a program
+            // (the pad's press_key.py, keybd_event) may arrive as VK_SHIFT, not VK_LSHIFT
             switch (vk)
             {
-                case 0xA2 or 0xA3: // VK_LCONTROL / VK_RCONTROL
+                case 0xA2 or 0xA3 or 0x11: // VK_LCONTROL / VK_RCONTROL / VK_CONTROL
                     _ctrlPressed = isKeyDown;
                     break;
-                case 0xA4 or 0xA5: // VK_LMENU / VK_RMENU (Alt)
+                case 0xA4 or 0xA5 or 0x12: // VK_LMENU / VK_RMENU / VK_MENU (Alt)
                     _altPressed = isKeyDown;
                     break;
-                case 0xA0 or 0xA1: // VK_LSHIFT / VK_RSHIFT
+                case 0xA0 or 0xA1 or 0x10: // VK_LSHIFT / VK_RSHIFT / VK_SHIFT
                     _shiftPressed = isKeyDown;
                     break;
             }
@@ -128,6 +136,18 @@ public class KeyboardHookService : IDisposable
                 App.Log("F9 pressed -> DrawModeToggled");
                 DrawModeToggled?.Invoke();
             }
+            // The thinking timer and the board, from anywhere (Omri, 2026-10-18: F6 / F5). KEPT
+            // from the app underneath (he chose that: F5 no longer refreshes a browser, F6 no
+            // longer jumps to its address bar). Only these exact combinations: Ctrl+F5 (a hard
+            // refresh), Alt+F6 and the rest still reach the app.
+            else if (GlobalKey(vk) is { } global)
+            {
+                // A key held down repeats its key-down: one press, or the timer would start
+                // and stop by itself
+                if (!_swallowUp.Contains(vk)) global();
+                _swallowUp.Add(vk);
+                return (IntPtr)1;
+            }
             else if (IsDrawing?.Invoke() == true && DrawingKey(vk) is { } key)
             {
                 bool typing = IsTyping?.Invoke() == true;
@@ -143,6 +163,30 @@ public class KeyboardHookService : IDisposable
         }
 
         return User32.CallNextHookEx(_kbHookId, nCode, wParam, lParam);
+    }
+
+    /// <summary>F5 / F6 and the pad's variants, or null. Plain F6 = 10 s, Shift+F6 = 30 s,
+    /// Ctrl+F6 = 60 s, Ctrl+Shift+F6 = clear the drawings (the pad types the last three; its 🧹
+    /// cannot use F10, which acts only while drawing and otherwise reaches the app in front),
+    /// plain F5 = the board.</summary>
+    private Action? GlobalKey(uint vk)
+    {
+        if (_altPressed) return null;
+        if (vk == VK_F6 && _ctrlPressed && _shiftPressed)
+            return () => { App.Log("Ctrl+Shift+F6 pressed -> ClearInk"); ClearInk?.Invoke(); };
+        int? seconds = vk != VK_F6 ? null
+            : (_ctrlPressed, _shiftPressed) switch
+            {
+                (false, false) => CountdownShort,
+                (false, true) => CountdownMid,
+                (true, false) => CountdownLong,
+                _ => null
+            };
+        if (seconds is int s)
+            return () => { App.Log($"F6 pressed -> Countdown {s}s"); CountdownRequested?.Invoke(s); };
+        if (vk == VK_F5 && !_ctrlPressed && !_shiftPressed)
+            return () => { App.Log("F5 pressed -> BoardToggled"); BoardToggled?.Invoke(); };
+        return null;
     }
 
     /// <summary>What a key does while drawing, or null when it is not one of ours.

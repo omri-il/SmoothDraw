@@ -198,8 +198,9 @@ public partial class App : System.Windows.Application
     /// <summary>
     /// Commands: status · draw toggle · draw off · laser toggle · clear · undo · redo ·
     /// color &lt;1-5&gt; · snapshot · dot &lt;x&gt; &lt;y&gt; (a new home for the dot, Win32
-    /// pixels; for tests). Every reply carries the current state:
-    /// {ok, drawing, tool, color, thickness, undo, redo} (undo / redo = steps available).
+    /// pixels; for tests) · board toggle (F5) · countdown &lt;1-600&gt; (F6's timer, seconds).
+    /// Every reply carries the current state: {ok, drawing, tool, color, thickness, undo,
+    /// redo, board, countdown} (undo / redo = steps available; countdown = its seconds, 0 = none).
     /// </summary>
     private object HandleControl(string command)
     {
@@ -217,6 +218,10 @@ public partial class App : System.Windows.Application
             case "undo": overlay.Undo(); break;
             case "redo": overlay.Redo(); break;
             case "snapshot": files = overlay.RenderToolbarSnapshots(AppIdentity.LocalDir).ToArray(); break;
+            case "board toggle": overlay.ToggleBoard(); break;
+            case var c when c.StartsWith("countdown ") && int.TryParse(c[10..], out int secs) && secs is >= 1 and <= 600:
+                overlay.StartCountdown(secs);
+                break;
             case var c when c.StartsWith("color ") && int.TryParse(c[6..], out int n) && n is >= 1 and <= 5:
                 overlay.SetColor(n);
                 break;
@@ -236,6 +241,8 @@ public partial class App : System.Windows.Application
             thickness = PenState.ThicknessNames[overlay.ThicknessIndex],
             undo = overlay.UndoCount,
             redo = overlay.RedoCount,
+            board = overlay.IsBoardOn,
+            countdown = overlay.CountdownRunning ? overlay.CountdownSeconds : 0,
             files
         };
     }
@@ -319,6 +326,8 @@ public partial class App : System.Windows.Application
         _keyboardHook.LaserToggled += () => Post(o => o.ToggleLaser());
         _keyboardHook.TimerToggled += () => Post(o => o.ToggleTimer());
         _keyboardHook.TimerVisibilityToggled += () => Post(o => o.ToggleTimerVisibility());
+        _keyboardHook.CountdownRequested += s => Post(o => o.StartCountdown(s));
+        _keyboardHook.BoardToggled += () => Post(o => o.ToggleBoard());
 
         // Shape tools
         _keyboardHook.ArrowToggled += () => Post(o => o.ToggleArrow());
