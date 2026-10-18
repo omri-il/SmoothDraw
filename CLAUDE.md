@@ -396,12 +396,17 @@ so "my finger doesn't draw" is answered there first.
 
 ---
 
-## Control from other programs (Start menu, pen button, tests)
-⚠️ **The OBS dashboard no longer controls this app** (2026-09-28, Omri: "I want to have a
-separation between the tools"). Its remote's ring / draw / laser / clear row and its
-`smooth.py` were removed; the dot, the hotkeys, the tray and the Start menu replace them.
-One link is left on purpose: while drawing, SmoothDraw lets clicks through to the
-remote window (`PassThroughWindowTitle`, "Pen and touch"), so REC / stop stay pressable.
+## Control from other programs (OBS remote, Start menu, pen button, tests)
+**The OBS dashboard's remote drives this app again** (since 2026-10-18; Omri reversed
+2026-09-28's "I want to have a separation between the tools" with "I want it all from there").
+The remote's main screen has a row ◎ ring (SmoothZoom's `ring toggle`) · ✏️ pen · ➡️ arrow ·
+🔴 laser · ↶ undo · 🧹 clear, through OBS-dashboard's `smooth.py` (`tool pen` / `tool arrow` /
+`tool laser`, `tool none` to go back to the mouse, `undo`, `clear`). It works from his phone
+too, over Tailscale. The hotkeys, the dot, the tray, the Start menu and the pad work as before.
+A SmoothDraw from before `tool <name>` answers `unknown command`, which the remote shows as
+"SmoothDraw needs an update". While drawing, SmoothDraw lets clicks through to the remote
+window (`PassThroughWindowTitle`, "Pen and touch"), so its buttons and REC / stop stay
+pressable.
 
 The app is controlled from outside through a **named pipe** (`src/Shared/ControlPipe.cs`,
 linked into the csproj; the same file is in the smoothzoom repo for SmoothZoom's pipe). One
@@ -411,7 +416,7 @@ instances, so a few callers at once never see "pipe busy".
 
 | Pipe | Commands | Reply |
 |---|---|---|
-| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `page next` · `page prev` (the board's pages) · `countdown <1-600>` (F6's timer, any length) | `{ok, drawing, tool, color, thickness, undo, redo, board, page, pages, countdown, files}` (`undo` / `redo` = steps available; `page` = the board's page on show, 0 = no board; `pages` = how many; `countdown` = its seconds, 0 = none; `files` = what `snapshot` wrote, or where `dot` put the dot) |
+| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `page next` · `page prev` (the board's pages) · `countdown <1-600>` (F6's timer, any length) · `tool <name>` (`none` `pen` `highlighter` `laser` `eraser` `arrow` `rectangle` `circle` `text`) | `{ok, drawing, tool, color, thickness, undo, redo, board, page, pages, countdown, files}` (`undo` / `redo` = steps available; `page` = the board's page on show, 0 = no board; `pages` = how many; `countdown` = its seconds, 0 = none; `files` = what `snapshot` wrote, or where `dot` put the dot) |
 
 SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. Until
 2026-09-28 this one was `SmoothAnnotate.control`.
@@ -419,6 +424,9 @@ SmoothZoom's pipe (`SmoothZoom.control`) is documented in the smoothzoom repo. U
   laser it goes to the pen, because the laser has its own switch (F11; the remote's laser
   button, until 2026-09-28) (`ToggleDrawOnOff`).
 - **`laser toggle` = F11**: laser on, or from the laser back to the mouse (`ToggleLaser`).
+- **`tool <name>`** picks that tool and switches drawing on, exactly like its toolbar button
+  or Ctrl+0-8 (`SelectToolByNumber`); `tool none` = the mouse (drawing off). Lower-case names
+  only; anything else is `unknown command`. The reply's `tool` is the enum's name (`Arrow`).
 - **`color <n>`** sets the ink colour (and remembers it, like the toolbar). **`dot <x> <y>`**
   gives the dot a new home in Win32 pixels, kept inside that screen's work area — for
   tests; a person drags it.

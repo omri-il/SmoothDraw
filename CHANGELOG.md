@@ -6,6 +6,14 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-18 (evening) — `tool <name>` on the pipe: the OBS remote drives drawing again
+- Omri reversed 2026-09-28's separation: "I want it all from there". OBS-dashboard's remote got a
+  row on its main screen (◎ ring, ✏️ pen, ➡️ arrow, 🔴 laser, ↶ undo, 🧹 clear), also from his phone.
+  Its `smooth.py` was built and merged first; it needed one tool per button, which `draw toggle`
+  (pen ↔ mouse) and `laser toggle` could not give, so `tool <name>` was added here.
+- The remote treats `unknown command` as "SmoothDraw needs an update", so an older build fails
+  visibly rather than doing the wrong thing.
+
 ## 2026-10-18 (later) — the top edge brings the bar, and the board has pages
 - Omri: "when I move to the edge of the screen the mouse usually doesn't bring back the toolbar",
   and "I want several screens to go through, like flipping pages". There was no edge feature at

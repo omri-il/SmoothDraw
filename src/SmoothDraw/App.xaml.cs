@@ -195,11 +195,17 @@ public partial class App : System.Windows.Application
 
     public const string PipeName = AppIdentity.PipeName;
 
+    /// <summary>`tool &lt;name&gt;`: the index is SelectToolByNumber's (and Ctrl+0-8's).</summary>
+    private static readonly string[] ToolNames =
+        { "none", "pen", "highlighter", "laser", "eraser", "arrow", "rectangle", "circle", "text" };
+
     /// <summary>
     /// Commands: status · draw toggle · draw off · laser toggle · clear · undo · redo ·
     /// color &lt;1-5&gt; · snapshot · dot &lt;x&gt; &lt;y&gt; (a new home for the dot, Win32
     /// pixels; for tests) · board toggle (F5) · page next · page prev (the board's pages) ·
-    /// countdown &lt;1-600&gt; (F6's timer, seconds).
+    /// countdown &lt;1-600&gt; (F6's timer, seconds) · tool &lt;name&gt; (none, pen, highlighter,
+    /// laser, eraser, arrow, rectangle, circle, text: picks it and switches drawing on, as the
+    /// toolbar does; none = the mouse. The OBS dashboard's remote, one button per tool).
     /// Every reply carries the current state: {ok, drawing, tool, color, thickness, undo,
     /// redo, board, page, pages, countdown} (undo / redo = steps available; page = the board's
     /// page on show, 1-based, 0 = no board; countdown = its seconds, 0 = none).
@@ -225,6 +231,9 @@ public partial class App : System.Windows.Application
             case "page prev": overlay.TurnPage(-1); break;
             case var c when c.StartsWith("countdown ") && int.TryParse(c[10..], out int secs) && secs is >= 1 and <= 600:
                 overlay.StartCountdown(secs);
+                break;
+            case var c when c.StartsWith("tool ") && Array.IndexOf(ToolNames, c[5..]) is var t and >= 0:
+                overlay.SelectToolByNumber(t);
                 break;
             case var c when c.StartsWith("color ") && int.TryParse(c[6..], out int n) && n is >= 1 and <= 5:
                 overlay.SetColor(n);
