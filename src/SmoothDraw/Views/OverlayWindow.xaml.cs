@@ -44,6 +44,8 @@ public partial class OverlayWindow : Window
     // Shape drawing state
     private Point _shapeStartPoint;
     private Shape? _shapePreview;
+    private Polygon? _arrowPreviewHead; // with an arrow's preview (its shaft): its head
+    private Point _shapeEndPoint;
     private bool _isDrawingShape;
 
     // Select/Move state
@@ -627,9 +629,7 @@ public partial class OverlayWindow : Window
     private Surface SwapSurface(Surface incoming)
     {
         CommitActiveTextBox();
-        if (_isDrawingShape && _shapePreview != null) ShapeCanvas.Children.Remove(_shapePreview);
-        _shapePreview = null;
-        _isDrawingShape = false;
+        DropShapePreview();
         _draggedElement = null;
         if (ShapeCanvas.IsMouseCaptured) ShapeCanvas.ReleaseMouseCapture();
         ClearInkSelection();
@@ -670,9 +670,7 @@ public partial class OverlayWindow : Window
         // stay "active" and keep the mouse
         CommitActiveTextBox();
         // A shape or a drag under way is dropped
-        if (_isDrawingShape && _shapePreview != null) ShapeCanvas.Children.Remove(_shapePreview);
-        _shapePreview = null;
-        _isDrawingShape = false;
+        DropShapePreview();
         _draggedElement = null;
         if (ShapeCanvas.IsMouseCaptured) ShapeCanvas.ReleaseMouseCapture();
         ClearInkSelection();
@@ -1169,6 +1167,7 @@ public partial class OverlayWindow : Window
         if (!IsShapeTool(_currentTool) || _currentTool == AnnotationTool.Text) return;
 
         _shapeStartPoint = e.GetPosition(ShapeCanvas);
+        _shapeEndPoint = _shapeStartPoint;
         _isDrawingShape = true;
 
         var brush = new SolidColorBrush(_currentColor);
@@ -1179,12 +1178,6 @@ public partial class OverlayWindow : Window
             {
                 Stroke = brush,
                 StrokeThickness = PenWidth,
-                X1 = _shapeStartPoint.X,
-                Y1 = _shapeStartPoint.Y,
-                X2 = _shapeStartPoint.X,
-                Y2 = _shapeStartPoint.Y,
-                StrokeStartLineCap = PenLineCap.Round,
-                StrokeEndLineCap = PenLineCap.Flat,
                 Effect = CreateShapeShadow()
             },
             AnnotationTool.Rectangle => new System.Windows.Shapes.Rectangle
@@ -1214,6 +1207,13 @@ public partial class OverlayWindow : Window
                 Canvas.SetTop(_shapePreview, _shapeStartPoint.Y);
             }
             ShapeCanvas.Children.Add(_shapePreview);
+            if (_shapePreview is Line shaft)
+            {
+                // The head is there from the start, so the preview is the arrow it will be
+                _arrowPreviewHead = new Polygon { Fill = brush, Stroke = brush, Effect = CreateShapeShadow() };
+                ArrowShape.Place(shaft, _arrowPreviewHead, _shapeStartPoint, _shapeStartPoint, shaft.StrokeThickness);
+                ShapeCanvas.Children.Add(_arrowPreviewHead);
+            }
             ShapeCanvas.CaptureMouse();
         }
     }
@@ -1237,12 +1237,12 @@ public partial class OverlayWindow : Window
         if (!_isDrawingShape || _shapePreview == null) return;
 
         var currentPoint = e.GetPosition(ShapeCanvas);
+        _shapeEndPoint = currentPoint;
 
         switch (_shapePreview)
         {
-            case Line line:
-                line.X2 = currentPoint.X;
-                line.Y2 = currentPoint.Y;
+            case Line line when _arrowPreviewHead != null:
+                ArrowShape.Place(line, _arrowPreviewHead, _shapeStartPoint, currentPoint, line.StrokeThickness);
                 break;
             case System.Windows.Shapes.Rectangle rect:
                 UpdateRectShape(rect, _shapeStartPoint, currentPoint);
@@ -1277,27 +1277,48 @@ public partial class OverlayWindow : Window
         ShapeCanvas.ReleaseMouseCapture();
 
         var shape = _shapePreview;
+        var head = _arrowPreviewHead;
         _shapePreview = null;
+        _arrowPreviewHead = null;
         if (shape == null) return;
 
         // A click rather than a shape: nothing to keep, nothing to undo
         if (ShapeExtent(shape) < 3)
         {
             ShapeCanvas.Children.Remove(shape);
+            if (head != null) ShapeCanvas.Children.Remove(head);
             return;
         }
 
         var added = new List<(UIElement Element, int Index)> { (shape, ShapeCanvas.Children.IndexOf(shape)) };
-        // Finalize arrow: add arrowhead polygon
-        if (shape is Line line && AddArrowHead(line) is { } head)
+        if (head != null)
+        {
             added.Add((head, ShapeCanvas.Children.IndexOf(head)));
+            // Register bidirectional pair so Select tool moves both together
+            _arrowPairs[shape] = head;
+            _arrowPairs[head] = shape;
+        }
         _history.Push(new ElementsAdded(ShapeCanvas.Children, added));
     }
 
-    /// <summary>How far a shape reaches: a line's length, a box's larger side.</summary>
-    private static double ShapeExtent(Shape shape)
+    /// <summary>A shape (or an arrow, with its head) being drawn is dropped: Clear, the board's swap.</summary>
+    private void DropShapePreview()
     {
-        if (shape is Line l) return Math.Sqrt((l.X2 - l.X1) * (l.X2 - l.X1) + (l.Y2 - l.Y1) * (l.Y2 - l.Y1));
+        if (_isDrawingShape)
+        {
+            if (_shapePreview != null) ShapeCanvas.Children.Remove(_shapePreview);
+            if (_arrowPreviewHead != null) ShapeCanvas.Children.Remove(_arrowPreviewHead);
+        }
+        _shapePreview = null;
+        _arrowPreviewHead = null;
+        _isDrawingShape = false;
+    }
+
+    /// <summary>How far a shape reaches: an arrow's length (to its tip, not the shaft's end), a
+    /// box's larger side.</summary>
+    private double ShapeExtent(Shape shape)
+    {
+        if (shape is Line) return (_shapeEndPoint - _shapeStartPoint).Length;
         double w = double.IsNaN(shape.Width) ? 0 : shape.Width, h = double.IsNaN(shape.Height) ? 0 : shape.Height;
         return Math.Max(w, h);
     }
@@ -1313,41 +1334,6 @@ public partial class OverlayWindow : Window
         Canvas.SetTop(shape, y);
         shape.Width = Math.Max(w, 1);
         shape.Height = Math.Max(h, 1);
-    }
-
-    private Polygon? AddArrowHead(Line line)
-    {
-        double dx = line.X2 - line.X1;
-        double dy = line.Y2 - line.Y1;
-        double length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 5) return null;
-
-        // Large prominent arrowhead (0.35 rad ≈ 20° spread, scaled to arrow length)
-        double headSize = Math.Max(30, Math.Min(length * 0.35, 50));
-        double angle = Math.Atan2(dy, dx);
-        double spread = 0.35;
-
-        var tip = new Point(line.X2, line.Y2);
-        var p1 = new Point(
-            tip.X - headSize * Math.Cos(angle - spread),
-            tip.Y - headSize * Math.Sin(angle - spread));
-        var p2 = new Point(
-            tip.X - headSize * Math.Cos(angle + spread),
-            tip.Y - headSize * Math.Sin(angle + spread));
-
-        var arrowHead = new Polygon
-        {
-            Points = new PointCollection { tip, p1, p2 },
-            Fill = new SolidColorBrush(_currentColor),
-            StrokeLineJoin = PenLineJoin.Round,
-            Effect = CreateShapeShadow()
-        };
-        ShapeCanvas.Children.Add(arrowHead);
-
-        // Register bidirectional pair so Select tool moves both together
-        _arrowPairs[line] = arrowHead;
-        _arrowPairs[arrowHead] = line;
-        return arrowHead;
     }
 
     private static void MoveElement(UIElement el, double dx, double dy)

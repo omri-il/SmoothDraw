@@ -317,6 +317,7 @@ src/SmoothDraw/
 └── Views/
     ├── OverlayWindow.xaml(.cs)  # Fullscreen transparent overlay (Board + InkCanvas + ShapeCanvas + CountdownHost + ConfettiCanvas); the board's swap
     ├── CountdownHud.cs          # The thinking timer's ring (F6)
+    ├── ArrowShape.cs            # The arrow's shaft + head layout (tip on the end point, head by thickness)
     ├── PenInkCanvas.cs          # InkCanvas that ignores touches while the pen is near (IgnoreTouchNearPen)
     ├── ToolbarWindow.xaml(.cs)  # The light toolbar and its dot; placement; snapshots
     ├── ToolbarProps.cs          # IsActive, for the button styles

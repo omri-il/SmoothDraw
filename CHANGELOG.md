@@ -6,6 +6,18 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-18 (night) — a cleaner arrow point
+- Omri: "the arrow's point doesn't look good" (a thick blue arrow). The shaft ran all the way to the
+  tip with a flat end as wide as the stroke, while the head narrows to nothing there, so a stub of
+  the line poked out past the point and the head looked bent. The head was also a fixed 30–50 DIP
+  spike (40° at the tip) whatever the thickness.
+- Now (`Views/ArrowShape.cs`): the shaft stops inside the head, where the head is wider than it;
+  the head is 5 × the thickness long (at least 18 DIP; a short arrow's at most 60 % of it), 0.8 of
+  that wide, with slightly rounded corners, and its rounded tip lands exactly on the end point. The
+  preview draws the head while dragging, through the same call. Still a Line + a Polygon, so
+  `_arrowPairs`, undo and Select are unchanged. Checked in an offscreen render at thin / medium /
+  thick, eight directions and lengths, against the old arrow (which reproduced his screenshot).
+
 ## 2026-10-18 (evening) — `tool <name>` on the pipe: the OBS remote drives drawing again
 - Omri reversed 2026-09-28's separation: "I want it all from there". OBS-dashboard's remote got a
   row on its main screen (◎ ring, ✏️ pen, ➡️ arrow, 🔴 laser, ↶ undo, 🧹 clear), also from his phone.
