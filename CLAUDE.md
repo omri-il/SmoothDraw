@@ -134,7 +134,10 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
   the program scene): the timer at 8 s (amber) and 2 s (red), gone after; the board in OBS's frame
   with the camera circle on it and the timer top-right; F5 off = the screen back with the timer still
   running. ⏳ Not yet: the board's drawings coming back on a second F5 with a real stroke (the one
-  drawn during the test was cut off by the board closing mid-stroke), and the home PC.
+  drawn during the test was cut off by the board closing mid-stroke).
+- **Checked 2026-10-18 17:52 on the home PC** (the 4420e91 build installed there at ~17:00, over SSH,
+  OBS open and not recording): the pipe's `countdown 3` answered `countdown 3`, still 3 a second
+  later, 0 five seconds later; SmoothDraw at Normal priority. ⏳ Not yet there: OBS's frame of it.
 
 ## The cursor ring (Ctrl+Alt+H, since 2026-10-18)
 Omri: "I don't use SmoothZoom; the only thing I want from it is the ring. Move it into SmoothDraw
