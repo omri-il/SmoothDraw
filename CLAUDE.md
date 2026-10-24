@@ -586,8 +586,11 @@ The script works around each quirk below:
 
 ```bash
 # Requires the .NET 8 SDK, 8.0.425 on both machines:
-# - laptop: C:\Program Files\dotnet (winget, 2026-09-27). A shell opened before that
-#   install lacks it on PATH: open a new one.
+# - laptop: portable, C:\Users\omrii\.dotnet-sdk (dotnet-install.ps1 -Version 8.0.425 -NoPath,
+#   2026-10-24; no admin). Not on PATH: C:\Program Files\dotnet has only the runtime now (the
+#   winget SDK of 2026-09-27 was gone). The laptop has the home PC's NuGet leftover too, so build
+#   with its clean config: powershell -File deploy\publish.ps1 -Dotnet C:\Users\omrii\.dotnet-sdk\dotnet.exe
+#   -NuGetConfig C:\Users\omrii\.dotnet-sdk\nuget-clean.config
 # - home PC: portable, E:\tools\dotnet (dotnet-install.ps1 -Version 8.0.425 -NoPath,
 #   2026-09-28; no admin, nothing on the full C:). Not on PATH — see "On the home PC" below.
 
