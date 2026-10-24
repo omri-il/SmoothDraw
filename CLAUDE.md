@@ -120,11 +120,9 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
     on the page you left. Pages live until SmoothDraw quits. The bar grows by the arrows (~113 DIP)
     and is pulled back inside the screen if that pushes it past the right edge (`KeepInsideWorkArea`).
   - **Checked 2026-10-18 on the laptop** (a Release build from the session, pipe + simulated mouse
-    and keys): the edge (a 150 ms touch = nothing; a rest = the bar at (599,0)-(2281,132) around the
-    mouse; kept on the bar; hidden 1.5 s after leaving; kept when drawing started, hidden when it
-    stopped) and the pages (a stroke on page 1; page 2 empty; PageUp back to page 1 with its ink;
+    and keys): the top-edge bar (removed 2026-10-24) and the pages (a stroke on page 1; page 2 empty; PageUp back to page 1 with its ink;
     → / PageDown; no new page from an empty one; F5 off/on opens on page 2; undo acts on the page on
-    show). ⏳ Not yet: a real click on the peeked bar (drawing was started through the pipe).
+    show).
   - **Installed 2026-10-18 ~17:00 on both machines** (build of 4420e91): the laptop through a
     one-off scheduled task (⚠️ on battery, a task with default settings sits "Queued" and never
     starts: give it `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`), the home PC over SSH
@@ -226,16 +224,11 @@ recording watcher: **the ring never comes on by itself.**
 - ⚠️ **Both machines hide the dot since 2026-10-10** (`HideToolbarWhenIdle: true` in their
   settings.json, Settings below): stopping drawing hides the toolbar completely. The rest of
   this section is how the dot works when it is on.
-- **The top edge brings the bar** (since 2026-10-18, only with `HideToolbarWhenIdle`; Omri: "when I
-  move to the edge of the screen the mouse usually doesn't bring back the toolbar" — nothing did,
-  then). `OverlayWindow.OnEdgeCheck`, every 100 ms while not drawing: the mouse resting on the very
-  top row of a screen for 350 ms (`EdgeDwell`), no mouse button held, shows the bar at the top of
-  that screen's work area, centred on the mouse (`ToolbarWindow.PeekAtTop`). Away from the bar (and
-  the strip above it) for 800 ms (`EdgeLinger`) = hidden again, and the window put back as it was
-  (`EndPeek`). A tool picked on it = drawing starts and the bar stays there (`KeepPeek`). After a
-  peek ends, the mouse must leave the edge before the next one (`_edgeArmed`, no flapping). A
-  rest, not a touch: maximised windows have their tabs and title bars up there. Logged `Toolbar
-  peek at the top edge: bar (…)` / `Toolbar peek ended`.
+- **No hover brings the bar** (removed 2026-10-24; it was there from 2026-10-18). The mouse resting
+  on the top edge used to show the bar there, centred on the mouse. Omri: "it's annoying that when I
+  hover my mouse, I suddenly see the bar" — and a bar dragged down from it jumped back to the top
+  (drawing was still off, so it stayed a "peek" and was put back). With `HideToolbarWhenIdle` the bar
+  shows only while drawing, at the place it was last dragged to. Don't bring a hover back.
 - **Mouse/Pointer** — exits draw mode, and the toolbar shrinks to a **42 px dot**
   (`HideToolbarWhenIdle` false, the default since 2026-09-28): white, a dark pencil, the ink
   colour as a badge. **Click the dot = pen, drag it = move it.** The dot replaced the OBS
@@ -406,9 +399,9 @@ a default. Before that day neither machine had a file.
 `RingSize`, `RingThickness`, `RingColor`, `RingFill`, `ClickRipple` — see "The cursor ring" (unset =
 SmoothZoom's own values).
 - **No dot = drawing starts from F9**: the pad's small right knob press (davinci-automation
-  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`), F9 itself, or the
-  bar brought by the top edge ("The dot" above).
-  The toolbar shows while drawing and goes away when drawing stops.
+  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`) or F9 itself. Nothing on
+  the screen's edge brings the bar (since 2026-10-24, "The dot" above).
+  The toolbar shows while drawing, where it was last dragged, and goes away when drawing stops.
 - How it was put there: the laptop through a one-off scheduled task (the MSIX redirect in
   "Build & Run"), the home PC over SSH; then SmoothDraw stopped and started again by its
   logon task (`Start-ScheduledTask SmoothDraw`). The setting is read only at start. The log

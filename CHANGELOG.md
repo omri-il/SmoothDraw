@@ -6,6 +6,16 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-24 — no more bar on hover; a dragged bar stays where it was put
+- Omri: "The bar is always appearing at the top, and if I drag it down, it always reverts to the
+  top", and "it's annoying that when I hover my mouse, I suddenly see the bar … I want to have it
+  when I want it". The laptop's log showed both came from 2026-10-18's top edge: each time the bar
+  came from a `Toolbar peek`; dragged down (`Toolbar moved … dot home (-2530,685)`), it was still a
+  peek because drawing was off, so a second later `Toolbar peek ended` hid it and the next hover
+  opened it at the top again. The edge was removed altogether (`OnEdgeCheck`, `PeekAtTop` /
+  `KeepPeek` / `EndPeek`). The bar shows while drawing (F9, the pad, the pen button, the Start
+  menu) and opens where it was last dragged: the drag saves `dot-position.json`, as before.
+
 ## 2026-10-18 (night, later) — the cursor ring moves in, ⏳ on the toolbar, SmoothZoom retired
 - Omri: "I don't use SmoothZoom; the only thing I want from it is the ring. Move it into SmoothDraw
   and we can say goodbye to SmoothZoom", and "a shortcut to the thinking timer … as a button in

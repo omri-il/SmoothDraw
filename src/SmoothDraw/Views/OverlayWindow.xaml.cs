@@ -170,79 +170,11 @@ public partial class OverlayWindow : Window
             Interval = TimeSpan.FromMilliseconds(50)
         };
         _toolbarHitTimer.Tick += OnToolbarHitCheck;
-
-        // No dot (HideToolbarWhenIdle): the mouse resting on the top edge brings the bar
-        if (_settings.HideToolbarWhenIdle)
-        {
-            _edgeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            _edgeTimer.Tick += OnEdgeCheck;
-            _edgeTimer.Start();
-        }
     }
 
-    // --- The top edge (only with HideToolbarWhenIdle, since 2026-10-18) ---
-    // Omri: moving the mouse to the edge of the screen should bring the toolbar back. Resting
-    // there (EdgeDwell) shows the bar at the top of that screen, centred on the mouse; leaving
-    // it for EdgeLinger hides it again. A click on a tool starts drawing, and the bar stays.
-    // A rest, not a touch: maximised windows have their tabs and title bars up there.
-    private readonly System.Windows.Threading.DispatcherTimer? _edgeTimer;
-    private static readonly TimeSpan EdgeDwell = TimeSpan.FromMilliseconds(350);
-    private static readonly TimeSpan EdgeLinger = TimeSpan.FromMilliseconds(800);
-    private DateTime? _edgeSince;  // the mouse has been on the top edge since
-    private DateTime? _peekLeft;   // the mouse left the peeked bar at
-    private bool _edgeArmed = true; // false after a peek ends, until the mouse leaves the edge (no flapping)
-
-    private void OnEdgeCheck(object? sender, EventArgs e)
-    {
-        if (_toolbar == null) return;
-        // A tool on, not confetti borrowing the overlay (draw mode with no tool)
-        if (_isDrawMode && _currentTool != AnnotationTool.None)
-        {
-            // Drawing started (from the peeked bar, or a key): the bar stays where it is
-            if (_toolbar.IsPeeking) _toolbar.KeepPeek();
-            _edgeSince = _peekLeft = null;
-            return;
-        }
-        if (!Native.User32.GetCursorPos(out var pt)) return;
-        var now = DateTime.UtcNow;
-
-        if (_toolbar.IsPeeking)
-        {
-            // Kept while the mouse is on the bar, or between it and the top edge
-            var keep = _toolbar.GetScreenBounds();
-            if (!keep.IsEmpty) keep.Union(new Point(keep.X, MonitorRectAt(pt).Top));
-            if (!keep.IsEmpty && keep.Contains(pt.X, pt.Y)) { _peekLeft = null; return; }
-            _peekLeft ??= now;
-            if (now - _peekLeft >= EdgeLinger)
-            {
-                _toolbar.EndPeek();
-                _peekLeft = null;
-                _edgeArmed = false;
-            }
-            return;
-        }
-
-        // On the top edge, no button held (a window being dragged up there snaps to full screen)
-        bool held = (Native.User32.GetAsyncKeyState(Native.User32.VK_LBUTTON) & 0x8000) != 0
-                    || (Native.User32.GetAsyncKeyState(Native.User32.VK_RBUTTON) & 0x8000) != 0;
-        if (pt.Y > MonitorRectAt(pt).Top + 1) _edgeArmed = true;
-        if (held || !_edgeArmed || pt.Y > MonitorRectAt(pt).Top + 1)
-        {
-            _edgeSince = null;
-            return;
-        }
-        _edgeSince ??= now;
-        if (now - _edgeSince < EdgeDwell) return;
-        _edgeSince = null;
-        _toolbar.PeekAtTop(pt.X, pt.Y);
-    }
-
-    private static Native.User32.RECT MonitorRectAt(Native.User32.POINT pt)
-    {
-        var mi = new Native.User32.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.User32.MONITORINFO>() };
-        var monitor = Native.User32.MonitorFromPoint(pt, Native.User32.MONITOR_DEFAULTTONEAREST);
-        return Native.User32.GetMonitorInfo(monitor, ref mi) ? mi.rcMonitor : new Native.User32.RECT(0, 0, 1920, 1080);
-    }
+    // No hover on the top edge brings the bar (2026-10-18 to 2026-10-24): Omri found it
+    // annoying, and a bar dragged down from there jumped back up (CHANGELOG). With
+    // HideToolbarWhenIdle the bar shows only while drawing, where it was last dragged.
 
     private void OnToolbarToolSelected(AnnotationTool tool)
     {
@@ -854,8 +786,7 @@ public partial class OverlayWindow : Window
         if (_toolbar == null) return;
         if (_settings.HideToolbarWhenIdle)
         {
-            if (_toolbar.IsPeeking) _toolbar.EndPeek();
-            else _toolbar.Hide();
+            _toolbar.Hide();
             return;
         }
         _toolbar.CollapseToMinimal();
