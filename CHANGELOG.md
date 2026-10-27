@@ -16,7 +16,8 @@ entries cover both apps.
   came back blank: nobody at it).
 - Laptop: **Smart App Control blocked the build** (CodeIntegrity 3077, 19:51), so SmoothDraw
   was not running there for ~2 minutes; the 2026-10-18 build was put back (running 19:53). The
-  laptop shows seconds until a build passes SAC or Omri turns SAC off.
+  laptop showed seconds until Omri turned SAC off (20:49); the 64764ef build then installed
+  (20:50), and a 10-minute timer read **10:00** inside the ring on the laptop's screen.
 
 ## 2026-10-24 — no more bar on hover; a dragged bar stays where it was put
 - Omri: "The bar is always appearing at the top, and if I drag it down, it always reverts to the
