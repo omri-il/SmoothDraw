@@ -710,8 +710,10 @@ What `deploy\install.ps1` does (safe to re-run; that is how you update):
   himself, since it's a security setting; re-read it before relying on this line). SAC blocks
   unsigned programs it has no good cloud verdict for. **Every new build is judged again, and
   the verdict varies** — a build can be blocked and the next one let through (CHANGELOG). So
-  after any update, check that the app is running on the laptop. Last seen: the first
-  `SmoothDraw.exe` on the laptop (build of 1092023) was let through, running within 10 s (2026-09-29 18:44). A block is CodeIntegrity
+  after any update, check that the app is running on the laptop. Last seen: **the build of
+  64764ef was BLOCKED (3077, 2026-10-27 19:51)**; the laptop runs the 2026-10-18 build again
+  (put back from `.claude/worktrees/nostalgic-darwin-e4833a/publish/`, which SAC had let
+  through; keep a laptop-approved `publish\` folder until a newer build passes). A block is CodeIntegrity
   event 3077, "did not meet the Enterprise signing level requirements". (Launched by the old
   `start.vbs`, the block showed up as a "Windows Script Host" error box.) The check: `Get-WinEvent -LogName
   'Microsoft-Windows-CodeIntegrity/Operational'`, event 3077 naming the exe. Never try to

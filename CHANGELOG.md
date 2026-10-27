@@ -6,6 +6,18 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-27 — the thinking timer reads m:ss from a minute up
+- The OBS remote's ⏳ took a custom length up to 10 minutes the same day (OBS-dashboard), and the
+  ring showed 599. Omri: "I don't want seconds! I want a minutes display too". `CountdownHud`
+  now writes `m:ss` from 60 s up, with a smaller font for 4 and 5 characters (0.27 / 0.22 of the
+  disc) so 10:00 stays inside the ring. Under a minute nothing changed.
+- Home PC: built and installed 19:55 (`E:\apps\SmoothDraw`); the pipe's `countdown 600` and
+  `countdown 90` started and stopped (debug.log). ⏳ Not seen on its screen (a GDI grab of it
+  came back blank: nobody at it).
+- Laptop: **Smart App Control blocked the build** (CodeIntegrity 3077, 19:51), so SmoothDraw
+  was not running there for ~2 minutes; the 2026-10-18 build was put back (running 19:53). The
+  laptop shows seconds until a build passes SAC or Omri turns SAC off.
+
 ## 2026-10-24 — no more bar on hover; a dragged bar stays where it was put
 - Omri: "The bar is always appearing at the top, and if I drag it down, it always reverts to the
   top", and "it's annoying that when I hover my mouse, I suddenly see the bar … I want to have it
