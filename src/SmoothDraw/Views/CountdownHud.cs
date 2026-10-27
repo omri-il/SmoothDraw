@@ -7,8 +7,9 @@ using System.Windows.Shapes;
 namespace SmoothDraw.Views;
 
 /// <summary>
-/// The thinking timer (F6 = 10 s, Shift+F6 = 30 s, Ctrl+F6 = 60 s; the pad's ⏳ keys): a ring
-/// that empties around the seconds left, on the real screen, so a recording and a Zoom share
+/// The thinking timer (F6 = 10 s, Shift+F6 = 30 s, Ctrl+F6 = 60 s; the pad's ⏳ keys; the OBS
+/// remote's ⏳ up to 10 minutes): a ring that empties around the time left (m:ss from a minute
+/// up), on the real screen, so a recording and a Zoom share
 /// both show it. It fades in, its last three seconds turn red and pop, and at zero it flashes
 /// and fades away by itself. Purely visual: anything the PC plays would land in the recording.
 /// Never takes input (IsHitTestVisible false), so it can sit over the board or over an app.
@@ -141,9 +142,10 @@ public sealed class CountdownHud : Grid
         _arc.Data = ArcGeometry(fraction);
         if (secs == _shown) return;
         _shown = secs;
-        _number.Text = secs.ToString();
-        // One more digit (60) gets a little less room, so it never touches the ring
-        _number.FontSize = Width * (secs >= 10 ? 0.36 : 0.42);
+        // From a minute up it reads m:ss (Omri, 2026-10-27, on a 10-minute timer that showed 599:
+        // "I want minutes"). Each longer text gets a little less room, so it never touches the ring
+        _number.Text = secs >= 60 ? $"{secs / 60}:{secs % 60:00}" : secs.ToString();
+        _number.FontSize = Width * (secs >= 600 ? 0.22 : secs >= 60 ? 0.27 : secs >= 10 ? 0.36 : 0.42);
         if (secs <= RedFrom)
         {
             _ringBrush.Color = Red;
