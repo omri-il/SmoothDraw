@@ -6,6 +6,18 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-10-28 — the thinking timer's place from the OBS remote, and it follows the take
+- Omri, in the OBS-dashboard session: pick WHERE the timer shows from the remote's ⚙️, and make it
+  smart: when the take is paused the timer pauses and goes on with it; when the take is restarted
+  (🔄), cancelled (🗑) or a part redone (↩️) the timer goes. He approved the plan.
+- New pipe commands for the dashboard: `countdown place <pos>` (adds `bottom-center`), `countdown
+  pause` / `resume` / `stop`; every reply gains `countdown_paused` and `countdown_place`.
+- The place lives in `countdown.json`, not settings.json: a saved settings.json would pin every
+  value (the same reason as pen.json). settings.json's `CountdownPosition` stays the fallback.
+- Paused = dimmed to 0.45 with a ⏸ drawn as two bars (no emoji: WPF draws them in one colour).
+- Built on the laptop (Release, 0 warnings). ⏳ Not yet run live or installed: the dashboard's side
+  is being built at the same time, and both go out together.
+
 ## 2026-10-27 — the thinking timer reads m:ss from a minute up
 - The OBS remote's ⏳ took a custom length up to 10 minutes the same day (OBS-dashboard), and the
   ring showed 599. Omri: "I don't want seconds! I want a minutes display too". `CountdownHud`

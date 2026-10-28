@@ -207,14 +207,18 @@ public partial class App : System.Windows.Application
     /// Commands: status · draw toggle · draw off · laser toggle · clear · undo · redo ·
     /// color &lt;1-5&gt; · snapshot · dot &lt;x&gt; &lt;y&gt; (a new home for the dot, Win32
     /// pixels; for tests) · board toggle (F5) · page next · page prev (the board's pages) ·
-    /// countdown &lt;1-600&gt; (F6's timer, seconds) · tool &lt;name&gt; (none, pen, highlighter,
+    /// countdown &lt;1-600&gt; (F6's timer, seconds; the same length again stops it, also while
+    /// paused) · countdown place &lt;pos&gt; (top-right, top-center, top-left, bottom-right,
+    /// bottom-center, bottom-left, center: saved to countdown.json, a running timer moves) ·
+    /// countdown pause · countdown resume · countdown stop (the OBS take paused / resumed /
+    /// restarted; each does nothing when there is nothing to do) · tool &lt;name&gt; (none, pen, highlighter,
     /// laser, eraser, arrow, rectangle, circle, text: picks it and switches drawing on, as the
     /// toolbar does; none = the mouse. The OBS dashboard's remote, one button per tool) ·
     /// ring toggle · ring on · ring off (the cursor ring, Ctrl+Alt+H).
     /// Every reply carries the current state: {ok, drawing, tool, color, thickness, undo,
-    /// redo, board, page, pages, countdown, ring} (undo / redo = steps available; page = the
-    /// board's page on show, 1-based, 0 = no board; countdown = its seconds, 0 = none; ring =
-    /// the cursor ring on).
+    /// redo, board, page, pages, countdown, countdown_paused, countdown_place, ring} (undo /
+    /// redo = steps available; page = the board's page on show, 1-based, 0 = no board;
+    /// countdown = its seconds, 0 = none; ring = the cursor ring on).
     /// </summary>
     private object HandleControl(string command)
     {
@@ -238,6 +242,13 @@ public partial class App : System.Windows.Application
             case "ring toggle": _ring?.Toggle(); break;
             case "ring on": _ring?.SetActive(true); break;
             case "ring off": _ring?.SetActive(false); break;
+            case "countdown pause": overlay.PauseCountdown(); break;
+            case "countdown resume": overlay.ResumeCountdown(); break;
+            case "countdown stop": overlay.StopCountdown(); break;
+            case var c when c.StartsWith("countdown place"):
+                if (!overlay.SetCountdownPlace(c[15..]))
+                    return new { ok = false, error = $"unknown place: {c[15..].Trim()} (top-right, top-center, top-left, bottom-right, bottom-center, bottom-left, center)" };
+                break;
             case var c when c.StartsWith("countdown ") && int.TryParse(c[10..], out int secs) && secs is >= 1 and <= 600:
                 overlay.StartCountdown(secs);
                 break;
@@ -267,6 +278,8 @@ public partial class App : System.Windows.Application
             page = overlay.IsBoardOn ? overlay.BoardPage : 0,
             pages = overlay.BoardPageCount,
             countdown = overlay.CountdownRunning ? overlay.CountdownSeconds : 0,
+            countdown_paused = overlay.CountdownPaused,
+            countdown_place = overlay.CountdownPlace,
             ring = _ring?.IsActive ?? false,
             files
         };

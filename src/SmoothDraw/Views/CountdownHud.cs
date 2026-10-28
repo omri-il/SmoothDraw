@@ -22,6 +22,7 @@ public sealed class CountdownHud : Grid
     private static readonly Color Red = Color.FromRgb(0xE5, 0x38, 0x3B);
     private const int RedFrom = 3;               // seconds left when the ring turns red
     private const double FadeInMs = 220, FadeOutMs = 420, CancelMs = 220;
+    private const double PausedOpacity = 0.45;   // paused (the OBS take paused): dimmed, with ⏸
 
     private readonly Path _arc = new() { StrokeThickness = 1, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
     private readonly Ellipse _track = new();
@@ -42,11 +43,22 @@ public sealed class CountdownHud : Grid
     private TimeSpan _total;
     private int _shown = -1;
     private bool _ticking;
+    private DateTime _pausedAt;
+    // ⏸ under the number while paused: two bars, never an emoji (WPF draws emoji in one colour)
+    private readonly StackPanel _pauseMark = new()
+    {
+        Orientation = System.Windows.Controls.Orientation.Horizontal,
+        HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Bottom,
+        Visibility = Visibility.Collapsed
+    };
 
     /// <summary>Counting down, or flashing at the end (a press then starts a new one).</summary>
     public bool IsRunning { get; private set; }
     /// <summary>The seconds this countdown was started with (0 when none).</summary>
     public int Seconds { get; private set; }
+    /// <summary>Counting is frozen (the OBS take paused); <see cref="Resume"/> goes on from there.</summary>
+    public bool IsPaused { get; private set; }
     /// <summary>It stopped running: done (after its flash) or stopped early.</summary>
     public event Action? Ended;
 
@@ -83,6 +95,12 @@ public sealed class CountdownHud : Grid
         Children.Add(_track);
         Children.Add(_arc);
         Children.Add(_number);
+
+        double barH = size * 0.07, barW = size * 0.026;
+        _pauseMark.Margin = new Thickness(0, 0, 0, size * 0.19);
+        _pauseMark.Children.Add(new System.Windows.Shapes.Rectangle { Width = barW, Height = barH, RadiusX = barW / 3, RadiusY = barW / 3, Fill = Brushes.White });
+        _pauseMark.Children.Add(new System.Windows.Shapes.Rectangle { Width = barW, Height = barH, RadiusX = barW / 3, RadiusY = barW / 3, Fill = Brushes.White, Margin = new Thickness(barW * 1.1, 0, 0, 0) });
+        Children.Add(_pauseMark);
     }
 
     public void Start(int seconds)
@@ -93,6 +111,8 @@ public sealed class CountdownHud : Grid
         _start = DateTime.UtcNow;
         _shown = -1;
         IsRunning = true;
+        IsPaused = false;
+        _pauseMark.Visibility = Visibility.Collapsed;
         _ringBrush.Color = Amber;
         Visibility = Visibility.Visible;
         Draw(1.0, seconds);
@@ -118,9 +138,38 @@ public sealed class CountdownHud : Grid
         if (Visibility != Visibility.Visible) return;
         StopTicking();
         IsRunning = false;
+        IsPaused = false;
         Seconds = 0;
         Hide(CancelMs);
         Ended?.Invoke();
+    }
+
+    /// <summary>Freezes the time left, dims the disc and shows ⏸. False when there is nothing
+    /// counting (none, already paused, or the flash at zero).</summary>
+    public bool Pause()
+    {
+        if (!IsRunning || IsPaused || !_ticking) return false;
+        StopTicking();
+        _pausedAt = DateTime.UtcNow;
+        IsPaused = true;
+        _pauseMark.Visibility = Visibility.Visible;
+        StopAnimations();
+        Fade(Opacity, PausedOpacity, CancelMs);
+        return true;
+    }
+
+    /// <summary>Goes on from exactly where it paused: the paused span is added to the start.</summary>
+    public bool Resume()
+    {
+        if (!IsRunning || !IsPaused) return false;
+        _start += DateTime.UtcNow - _pausedAt;
+        IsPaused = false;
+        _pauseMark.Visibility = Visibility.Collapsed;
+        StopAnimations();
+        Fade(Opacity, 1, FadeInMs);
+        CompositionTarget.Rendering += OnFrame;
+        _ticking = true;
+        return true;
     }
 
     private void OnFrame(object? sender, EventArgs e)

@@ -77,6 +77,7 @@ public partial class OverlayWindow : Window
 
     // The thinking timer (F6), made on its first use
     private CountdownHud? _countdown;
+    private string _countdownPlace = "top-right"; // countdown.json, else settings.json's CountdownPosition
     // The taskbar's room on the overlay's monitor (DIP), so a timer at the bottom sits above it
     private Thickness _workInset;
     // Selected ink's points before a move or resize, until it has happened
@@ -99,6 +100,7 @@ public partial class OverlayWindow : Window
         ((Grid)Content).Children.Insert(0, _hitLayer);
         SizeChanged += (_, _) => UpdateHitLayer();
         _pen = PenStateService.Load(settings);
+        _countdownPlace = CountdownPlaceService.Load(settings);
         _currentColor = InkPalette.Get(_pen.Color);
 
         DrawCanvas.StrokeCollected += OnStrokeCollected;
@@ -427,6 +429,41 @@ public partial class OverlayWindow : Window
 
     public bool CountdownRunning => _countdown?.IsRunning == true;
     public int CountdownSeconds => _countdown?.Seconds ?? 0;
+    public bool CountdownPaused => _countdown?.IsPaused == true;
+    public string CountdownPlace => _countdownPlace;
+
+    /// <summary>The pipe's `countdown place &lt;pos&gt;` (the OBS remote's ⚙️): saved to
+    /// countdown.json, and a running timer moves there at once. False = not a place.</summary>
+    public bool SetCountdownPlace(string place)
+    {
+        if (CountdownPlaceService.Normalize(place) is not { } p) return false;
+        _countdownPlace = p;
+        CountdownPlaceService.Save(p);
+        PlaceCountdown();
+        App.Log($"Countdown place: {p}");
+        return true;
+    }
+
+    /// <summary>The OBS take paused: the timer freezes and dims. Nothing running = nothing.</summary>
+    public void PauseCountdown()
+    {
+        if (_countdown?.Pause() == true) App.Log($"Countdown {_countdown.Seconds}s: paused");
+    }
+
+    /// <summary>The OBS take resumed: on from where it paused.</summary>
+    public void ResumeCountdown()
+    {
+        if (_countdown?.Resume() == true) App.Log($"Countdown {_countdown.Seconds}s: resumed");
+    }
+
+    /// <summary>The take restarted, cancelled or a part redone: the timer goes (no flash).</summary>
+    public void StopCountdown()
+    {
+        if (_countdown?.IsRunning != true) return;
+        int s = _countdown.Seconds;
+        _countdown.Cancel();
+        App.Log($"Countdown {s}s: stopped");
+    }
 
     /// <summary>Starts a countdown; the same length again while it runs stops it, another
     /// length starts over with that one. Works whether you draw or not: the overlay is
@@ -462,7 +499,7 @@ public partial class OverlayWindow : Window
         if (_countdown == null) return;
         const double m = 36; // from the screen's edge (above the taskbar at the bottom)
         var w = _workInset;
-        string pos = (_settings.CountdownPosition ?? "").Trim().ToLowerInvariant();
+        string pos = _countdownPlace;
         bool top = !pos.StartsWith("bottom"), center = pos == "center";
         _countdown.VerticalAlignment = center ? VerticalAlignment.Center : top ? VerticalAlignment.Top : VerticalAlignment.Bottom;
         _countdown.HorizontalAlignment = center || pos.EndsWith("center") ? System.Windows.HorizontalAlignment.Center

@@ -94,10 +94,22 @@ apart). Both live on the overlay, which OBS's Display Capture records like the d
   (anything played lands in the recording, OBS-dashboard CLAUDE.md). The same length again = it fades
   out at once; another length = it starts over with that one. Measured 2026-10-18: 10 s started →
   done in 10.000 s (the log's `Countdown 10s: started / done`).
-  - **Where:** `CountdownPosition` (default top-right, 36 DIP in from the edges, above the taskbar at
-    the bottom: the monitor's work area), `CountdownSize` 170 DIP. On the screen the cursor is on: the
+  - **Where:** the place picked on the OBS remote's ⚙️ (the pipe's `countdown place <pos>`, since
+    2026-10-28: top-right / top-center / top-left / bottom-right / bottom-center / bottom-left /
+    center), saved in `%APPDATA%\SmoothDraw\countdown.json` (`{"place": "..."}`,
+    `Services/CountdownPlaceService.cs`, written atomically) and taking effect at once, also on a
+    running timer. No file = settings.json's `CountdownPosition`, else top-right. F6, the pad and the
+    toolbar's ⏳ all use it. 36 DIP in from the edges, above the taskbar at
+    the bottom (the monitor's work area); `CountdownSize` 170 DIP. On the screen the cursor is on: the
     overlay moves there first unless you are drawing or drawings are left on the screen (they would
     move with it).
+  - **Follows the OBS take** (since 2026-10-28; Omri: the timer should pause with the take, and go
+    when the take is restarted 🔄, cancelled 🗑 or a part redone ↩️). The OBS dashboard sends
+    `countdown pause` (counting frozen, the disc dims to 0.45 with a ⏸ of two bars under the
+    number), `countdown resume` (on from exactly where it stopped: the paused span is added to the
+    start) and `countdown stop` (the early stop's quick fade, no flash). Each is a no-op when there
+    is nothing to do. While paused, the same length again stops it and another length starts it
+    fresh, unpaused. Logged `Countdown 30s: paused / resumed / stopped`.
   - It is on the real screen, so OBS's F8 zoom crops it like everything else: zoomed in away from the
     corner, the video does not show it.
 - **The board** (`OverlayWindow.ToggleBoard`): a rectangle of `BoardColor` (#121417, Khan Academy's
@@ -344,6 +356,7 @@ src/SmoothDraw/
 │   ├── ConfettiService.cs     # Particle physics confetti
 │   ├── OverlayService.cs      # Win32 click-through toggling, z-order, capture exclusion
 │   ├── PenStateService.cs     # pen.json
+│   ├── CountdownPlaceService.cs # countdown.json: where the thinking timer shows
 │   └── SettingsService.cs     # JSON persistence
 └── Views/
     ├── OverlayWindow.xaml(.cs)  # Fullscreen transparent overlay (Board + InkCanvas + ShapeCanvas + CountdownHost + ConfettiCanvas); the board's swap
@@ -394,7 +407,8 @@ is still the code default: a missing key keeps its default when the file is read
 app itself saved would pin every value at the time it was saved — re-check before relying on
 a default. Before that day neither machine had a file.
 `HideToolbarWhenIdle` (code default false: the dot) — see "The dot" above.
-`CountdownPosition` (top-right / top-left / top-center / bottom-right / bottom-left / center),
+`CountdownPosition` (top-right / top-left / top-center / bottom-right / bottom-left / bottom-center / center;
+only a fallback since 2026-10-28: the remote's choice in `countdown.json` wins),
 `CountdownSize` (170 DIP) and `BoardColor` (#121417) — see "The thinking timer and the board".
 `RingSize`, `RingThickness`, `RingColor`, `RingFill`, `ClickRipple` — see "The cursor ring" (unset =
 SmoothZoom's own values).
@@ -450,7 +464,7 @@ instances, so a few callers at once never see "pipe busy".
 
 | Pipe | Commands | Reply |
 |---|---|---|
-| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `page next` · `page prev` (the board's pages) · `countdown <1-600>` (F6's timer, any length) · `tool <name>` (`none` `pen` `highlighter` `laser` `eraser` `arrow` `rectangle` `circle` `text`) · `ring toggle` · `ring on` · `ring off` (the cursor ring, Ctrl+Alt+H) | `{ok, drawing, tool, color, thickness, undo, redo, board, page, pages, countdown, ring, files}` (`undo` / `redo` = steps available; `page` = the board's page on show, 0 = no board; `pages` = how many; `countdown` = its seconds, 0 = none; `ring` = the cursor ring on, `true` / `false`, in every reply; `files` = what `snapshot` wrote, or where `dot` put the dot) |
+| `\\.\pipe\SmoothDraw.control` | `status` · `draw toggle` · `draw off` · `laser toggle` · `clear` · `undo` · `redo` · `color <1-5>` · `snapshot` · `dot <x> <y>` · `board toggle` (F5) · `page next` · `page prev` (the board's pages) · `countdown <1-600>` (F6's timer, any length) · `countdown place <pos>` (`top-right` `top-center` `top-left` `bottom-right` `bottom-center` `bottom-left` `center`; anything else = `{ok:false, error}`) · `countdown pause` · `countdown resume` · `countdown stop` · `tool <name>` (`none` `pen` `highlighter` `laser` `eraser` `arrow` `rectangle` `circle` `text`) · `ring toggle` · `ring on` · `ring off` (the cursor ring, Ctrl+Alt+H) | `{ok, drawing, tool, color, thickness, undo, redo, board, page, pages, countdown, countdown_paused, countdown_place, ring, files}` (`undo` / `redo` = steps available; `page` = the board's page on show, 0 = no board; `pages` = how many; `countdown` = its seconds, 0 = none; `countdown_paused` = `true` / `false`; `countdown_place` = where the timer shows; `ring` = the cursor ring on, `true` / `false`, in every reply; `files` = what `snapshot` wrote, or where `dot` put the dot) |
 
 SmoothZoom's pipe (`SmoothZoom.control`) went with it on 2026-10-18: the ring's `ring …`
 commands are this pipe's now. Until 2026-09-28 this one was `SmoothAnnotate.control`.
