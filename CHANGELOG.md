@@ -15,8 +15,12 @@ entries cover both apps.
 - The place lives in `countdown.json`, not settings.json: a saved settings.json would pin every
   value (the same reason as pen.json). settings.json's `CountdownPosition` stays the fallback.
 - Paused = dimmed to 0.45 with a ⏸ drawn as two bars (no emoji: WPF draws them in one colour).
-- Built on the laptop (Release, 0 warnings). ⏳ Not yet run live or installed: the dashboard's side
-  is being built at the same time, and both go out together.
+- Built on the laptop (Release, 0 warnings). Installed 2026-10-28 (build of 105443d, Omri: "Merge
+  and deploy"), neither machine recording: the home PC over SSH (built there, 17:44,
+  `running: SmoothDraw`), the laptop through a one-off scheduled task (19:30; the first try was cut
+  off mid-run and left the old build running, the second went through). Each `status` reply carried
+  `"countdown_paused":false,"countdown_place":"top-right"`; both at Normal priority, no
+  CodeIntegrity 3077 on the laptop. ⏳ Not yet seen: pause / place on the screen itself.
 
 ## 2026-10-27 — the thinking timer reads m:ss from a minute up
 - The OBS remote's ⏳ took a custom length up to 10 minutes the same day (OBS-dashboard), and the
