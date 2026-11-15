@@ -454,3 +454,546 @@ script works around each one:
   moment): SmoothAnnotate started 20 s–2 min late on 2026-09-27, while the install printed
   `running: SmoothZoom` only. Tell the two apart before waiting: a **block** is a CodeIntegrity
 ```
+
+## Moved from CLAUDE.md (2026-11-15)
+
+Text moved out of `CLAUDE.md` on 2026-11-15 (round-2 trim), verbatim, grouped by the section it
+stood in (old line numbers in brackets, from commit 9ecf185). The rules these lines carry are still
+in `CLAUDE.md`, reworded without the dates, quotes, test runs and install records.
+
+### From "SmoothDraw"
+
+[lines 8-11]
+```text
+Until 2026-09-28 it was **SmoothAnnotate**, inside the `smoothzoom` repo next to the
+cursor-ring app. It moved here with its history (`git filter-repo`); SmoothZoom stayed
+there, until it was retired on 2026-10-18 (its ring moved here). Why things are the way they are (dated incidents and decisions): `CHANGELOG.md`,
+not auto-loaded. Entries before 2026-09-28 there cover both apps.
+```
+
+### From "Hotkeys"
+
+[lines 25-70]
+```text
+⚠️ **Only F9, F5, F6 and Ctrl+Alt+H work in every program (F9 = F8 until 2026-10-13, see the table; F5 / F6
+since 2026-10-18, "The thinking timer and the board" below; Ctrl+Alt+H since 2026-10-18, "The cursor ring"). Every other key below acts only while you are
+already drawing** (`KeyboardHookService.IsDrawing`, since 2026-09-28). Caught everywhere,
+they were ordinary keys in other programs: Ctrl+1 (browser tab) switched the pen on, and
+Ctrl+V with a screenshot on the clipboard pasted it onto the screen. The log showed both on
+2026-09-28 (`PEN` with no `F8 pressed` or `control:` line, then `IMAGE PASTED`). Omri: "It
+keeps just opening by itself". Esc was already safe (it acts only when it stops something).
+
+⚠️ **A key that acts while drawing is kept from the program underneath** (since
+2026-09-28): the key-down AND its key-up (`_swallowUp`; Ctrl / Shift / Alt always go
+through, both ways). Before, F11 also put the browser full screen, Ctrl+V pasted there and
+Ctrl+1 switched its tab. **Exception: while a text box on the overlay is being typed in**
+(`IsTyping`), nothing is kept (the text box has the keyboard), and Ctrl+Z / Ctrl+Y / Ctrl+V
+are the text box's own (undo typing, paste text) and do nothing else. The hook only
+decides; the work is queued with `Dispatcher.BeginInvoke`, never run inside Windows' hook
+call (Esc is the one exception: whether it is kept depends on its answer).
+
+| Key | Action |
+|-----|--------|
+| F6 | **Thinking timer, 10 s, from anywhere.** Shift+F6 = 30 s, Ctrl+F6 = 60 s, Ctrl+Shift+F6 = clear the drawings (the pad's page 4 types these). The same length again stops it. Kept from other programs |
+| F5 | **The board, from anywhere**: on (and the pen) / off (back to the screen). Kept from other programs; Ctrl+F5 still reaches them |
+| PageDown / → , PageUp / ← | **On the board only:** the next / previous page (past the last = a new page). Elsewhere these keys are untouched |
+| F9 | Toggle draw mode, from anywhere (never F8 — that is OBS zoom-to-mouse since 2026-10-13; the two were swapped that day, F8 was this key before). Not kept from other programs |
+| F10 | Clear all (undoable) |
+| F11 | Laser pointer on/off — pressed again it goes back to the mouse, never to the pen (the screen would stay covered) |
+| Esc | Stop drawing (back to the mouse). While typing text, the first Esc finishes the text. Kept from the app underneath only when it stopped something |
+| F12 | Timer start/pause (double-tap = reset) |
+| Ctrl+Z | Undo |
+| Ctrl+Y, Ctrl+Shift+Z | Redo (never with Alt: Ctrl+Alt+Z was SmoothZoom's zoom) |
+| Ctrl+0 | Mouse mode (click-through; the toolbar shrinks to its dot — see "The dot" below) |
+| Ctrl+1 | Pen |
+| Ctrl+2 | Highlighter |
+| Ctrl+3 | Laser |
+| Ctrl+4 | Eraser |
+| Ctrl+5 | Arrow |
+| Ctrl+6 | Rectangle |
+| Ctrl+7 | Circle |
+| Ctrl+8 | Text |
+| Ctrl+V | Paste image from clipboard |
+| Ctrl+Alt+A | Arrow tool |
+| Ctrl+Alt+R | Rectangle tool |
+| Ctrl+Alt+O | Circle/Oval tool |
+| Ctrl+Alt+X | Text tool |
+| Ctrl+Alt+H | **The cursor ring on/off, from anywhere** (SmoothZoom's key until 2026-10-18; the pad's ◎ types it). Kept from other programs |
+| Ctrl+Alt+T | Timer show/hide |
+| Ctrl+Alt+1-5 | Colors: Red, Blue, Green, White, Yellow |
+```
+
+### From "The thinking timer and the board (since 2026-10-18)"
+
+[lines 73-77]
+```text
+Omri: "a timer that shows on the screen and goes away — say I want them to think about something for
+10 seconds", and "a whiteboard in the style of Khan Academy or Excalidraw". Asked, he chose: on the REAL
+screen (so a recording AND a Zoom screen share both show it, which an OBS source would not), a ring that
+empties with the number inside, F6 / F5, the pad, and no button on the OBS remote (the tools stay
+apart). Both live on the overlay, which OBS's Display Capture records like the drawings.
+```
+
+[lines 83-85]
+```text
+  their plain codes too (VK_SHIFT 0x10 …): a key typed by a program (the pad's `press_key.py`,
+  `keybd_event`) may come that way. Checked 2026-10-18: press_key.py's Shift+F6 / Ctrl+F6 / F6 /
+  Ctrl+Shift+F6 reached it as 30 s / 60 s / 10 s / clear, and Shift+F6 twice stopped the 30 s.
+```
+
+[lines 95-96]
+```text
+  out at once; another length = it starts over with that one. Measured 2026-10-18: 10 s started →
+  done in 10.000 s (the log's `Countdown 10s: started / done`).
+```
+
+[lines 106-107]
+```text
+  - **Follows the OBS take** (since 2026-10-28; Omri: the timer should pause with the take, and go
+    when the take is restarted 🔄, cancelled 🗑 or a part redone ↩️). The OBS dashboard sends
+```
+
+[lines 125-125]
+```text
+  - **Pages** (since 2026-10-18 later; Omri: "several screens to go through, like flipping pages"):
+```
+
+[lines 134-150]
+```text
+  - **Checked 2026-10-18 on the laptop** (a Release build from the session, pipe + simulated mouse
+    and keys): the top-edge bar (removed 2026-10-24) and the pages (a stroke on page 1; page 2 empty; PageUp back to page 1 with its ink;
+    → / PageDown; no new page from an empty one; F5 off/on opens on page 2; undo acts on the page on
+    show).
+  - **Installed 2026-10-18 ~17:00 on both machines** (build of 4420e91): the laptop through a
+    one-off scheduled task (⚠️ on battery, a task with default settings sits "Queued" and never
+    starts: give it `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`), the home PC over SSH
+    (its first build with the timer and the board too). Each `status` reply carried `page` /
+    `pages`; both at Normal priority, no CodeIntegrity 3077 on the laptop.
+- **Checked 2026-10-18 on the laptop** (a Release build from the session, against OBS's own frame of
+  the program scene): the timer at 8 s (amber) and 2 s (red), gone after; the board in OBS's frame
+  with the camera circle on it and the timer top-right; F5 off = the screen back with the timer still
+  running. ⏳ Not yet: the board's drawings coming back on a second F5 with a real stroke (the one
+  drawn during the test was cut off by the board closing mid-stroke).
+- **Checked 2026-10-18 17:52 on the home PC** (the 4420e91 build installed there at ~17:00, over SSH,
+  OBS open and not recording): the pipe's `countdown 3` answered `countdown 3`, still 3 a second
+  later, 0 five seconds later; SmoothDraw at Normal priority. ⏳ Not yet there: OBS's frame of it.
+```
+
+### From "The cursor ring (Ctrl+Alt+H, since 2026-10-18)"
+
+[lines 153-156]
+```text
+Omri: "I don't use SmoothZoom; the only thing I want from it is the ring. Move it into SmoothDraw
+and we can say goodbye to SmoothZoom." Ported from SmoothZoom's `CursorHighlightService` as
+`Services/CursorRingService.cs`, looking and behaving the same; not the zoom, and not its OBS
+recording watcher: **the ring never comes on by itself.**
+```
+
+[lines 172-173]
+```text
+  (`HighlightRingSize` …), else the defaults above. That is how the laptop's ring 60 came along
+  (60 at 200 % scaling comes out ~72 px in the video, like the home PC's 70; smoothzoom CLAUDE.md).
+```
+
+### From "The toolbar"
+
+[lines 185-195]
+```text
+- **⏳ the thinking timer** (since 2026-10-18; Omri: "a shortcut to the thinking timer … as a
+  button"): a Tabler `hourglass`, tooltip "טיימר חשיבה (F6)". A click opens 10 · 30 · 60 beside
+  it **inside the bar** (`CountdownGroup`), not a popup: a popup is a window of its own, which
+  would be recorded and would not be a hole in the hit layer (a finger tap would land on the
+  canvas). A pick = `StartCountdown`, exactly F6 / Shift+F6 / Ctrl+F6: the same one again while
+  it runs stops it. The running one is lit (`SetCountdown`, from `CountdownHud.Ended` when it
+  stops). The choice stays open until ⏳ again or the bar hides, so after a pick nothing slides
+  under the pointer; opening it grows the bar (pulled back inside the screen, as for the pages).
+  - Why it changed: confetti and delete were invisible. They were emoji `TextBlock`s, and
+    WPF draws emoji in one colour: with no Foreground set, black on the near-black bar.
+    **Never use emoji for toolbar icons.**
+```
+
+[lines 202-229]
+```text
+- 🎥 **Hidden from screen capture** (`OverlayService.HideFromCapture`, `WDA_EXCLUDEFROMCAPTURE`,
+  since 2026-09-28): the toolbar, its dot, the mode labels (`ToastWindow`: "PEN",
+  "MOUSE"…) and **the tooltips**. Omri sees them; OBS, screenshots and screen shares don't,
+  the same as the OBS remote. **Never the overlay:** its ink is what the video is for. The
+  debug log says `Toolbar: hidden from screen capture` / `Mode label: …` at start and
+  `Tooltip: hidden from screen capture` at the first tooltip, or `… FAILED` if Windows
+  refused. **Verified on the home PC 2026-09-28:** the dot was visible at (939,10)–(981,52)
+  with affinity `0x11`. OBS's own frame of Display Capture (`GetSourceScreenshot`, that
+  monitor, 9,581 colours overall) had only 2 dark colours there and none of the dot's white
+  pen. A screenshot of any kind cannot show the dot, so that is the only way to check.
+  **Verified again 2026-09-29 with the new bar and a tooltip up** (OBS frames with the bar
+  open + the Pen tooltip showing, vs drawing off): in the bar's box 0.00 % of pixels
+  differed and none of its colours (active pill, amber confetti) appeared; the tooltip's
+  window had affinity `0x11` and its box differed 0.00 % with not one white pixel; the red
+  mouse stroke drawn meanwhile was in the frame (1,220 red pixels). ⚠️ A .NET 8 tooltip
+  stays open while the pointer rests on its button — it does not close by itself after 5 s.
+  - ⚠️ **A tooltip opens in a window of its own**, which the toolbar's exclusion does not
+    cover: until 2026-09-28 every tooltip was recorded. Now a class handler on
+    `ToolTip.OpenedEvent` (App) excludes that window and makes it click-through
+    (`WS_EX_TRANSPARENT`), and only then fades the tooltip in: it opens at opacity 0
+    (App.xaml's ToolTip style), so no frame of it is ever recorded. Any new popup (a
+    menu, a flyout) needs the same treatment.
+- **Close** — ✕ **stops drawing**, exactly like the mouse button
+  (`OnToolbarToolSelected(None)`). It must never quit the app: quitting left drawing out of
+  reach until a restart (then: the OBS remote's buttons greyed, CHANGELOG). Quitting is the tray icon's
+  "Quit" only. If "SmoothDraw isn't running" anyway, check that it was quit from the
+  tray, then check Smart App Control (Install / update). Verified with a real click on the
+  home PC (2026-09-27, as SmoothAnnotate): the app kept running, drawing turned off, the log said MOUSE.
+```
+
+### From "The dot, and where the bar opens"
+
+[lines 236-248]
+```text
+- ⚠️ **Both machines hide the dot since 2026-10-10** (`HideToolbarWhenIdle: true` in their
+  settings.json, Settings below): stopping drawing hides the toolbar completely. The rest of
+  this section is how the dot works when it is on.
+- **No hover brings the bar** (removed 2026-10-24; it was there from 2026-10-18). The mouse resting
+  on the top edge used to show the bar there, centred on the mouse. Omri: "it's annoying that when I
+  hover my mouse, I suddenly see the bar" — and a bar dragged down from it jumped back to the top
+  (drawing was still off, so it stayed a "peek" and was put back). With `HideToolbarWhenIdle` the bar
+  shows only while drawing, at the place it was last dragged to. Don't bring a hover back.
+- **Mouse/Pointer** — exits draw mode, and the toolbar shrinks to a **42 px dot**
+  (`HideToolbarWhenIdle` false, the default since 2026-09-28): white, a dark pencil, the ink
+  colour as a badge. **Click the dot = pen, drag it = move it.** The dot replaced the OBS
+  remote's ✏️ button as the mouse's way in. Until the capture exclusion above, the default
+  was `true` (hide completely), because a visible toolbar or dot ended up in every video.
+```
+
+[lines 274-279]
+```text
+  - **Verified on the home PC 2026-09-28** (pipe `dot X Y`, then open and close; the rects
+    read from outside): bottom-left, bottom-right, top-right, left edge of the main screen
+    and the left edge of the 150 % screen — every bar on the dot's vertical centre (at the
+    very bottom edge the 66 px bar sits 2 px higher than the 62 px dot, to stay inside the
+    work area), on the side facing the middle, inside the work area, and the dot back on its
+    exact spot after closing.
+```
+
+### From "Undo / redo (`Services/DrawingHistory.cs`)"
+
+[lines 317-323]
+```text
+- **Clear with a text box open** finishes the box properly first. Before 2026-09-28 it was
+  removed with the rest but stayed "active" and kept the mouse.
+- **Verified on the home PC 2026-09-29** (`touch-test.ps1 -Steps undo,keys`, installed
+  build): draw → undo (ink gone) → redo (back) → clear → undo (back) → Ctrl+4 + an eraser
+  drag (gone) → undo (back), all PASS; and while drawing, Ctrl+V / Ctrl+Z / Ctrl+Y and F11
+  twice left a text box underneath untouched. (By accident the same held for Windows 11
+  Notepad underneath, twice: its text stayed as typed, nothing pasted or undone.)
+```
+
+### From "Structure"
+
+[lines 335-370]
+```text
+## Structure
+```
+src/SmoothDraw/
+├── App.xaml(.cs)              # Entry point, tray icon, service wiring, pipe, tooltip capture exclusion,
+│                              #   taking over from SmoothAnnotate
+├── AppIdentity.cs             # Every outside name: mutex, pipe, %APPDATA% / %LOCALAPPDATA% folders, old name
+├── GlobalUsings.cs            # Resolves WPF/WinForms type ambiguities
+├── Models/
+│   ├── AnnotationSettings.cs  # Settings POCO
+│   ├── AnnotationTool.cs      # Tool enum (None/Pen/Highlighter/Eraser/Laser/Arrow/Rectangle/Circle/Text/Select)
+│   ├── InkPalette.cs          # The 5 colours
+│   └── PenState.cs            # pen.json: colour, thickness, text size
+├── Native/
+│   ├── User32.cs              # P/Invoke: hooks, window styles, monitors, SetWindowPos, DPI
+│   └── Kernel32.cs            # P/Invoke: GetModuleHandle
+├── Services/
+│   ├── DrawingHistory.cs      # Undo / redo: the history and its steps
+│   ├── KeyboardHookService.cs # F9, F5/F6 (any program), F10-F12, Esc, Ctrl+0-8, Ctrl+V, Ctrl+Z/Y, Ctrl+Alt combos; what to keep from other programs
+│   ├── LaserService.cs        # Laser fade-out timer (single-stroke approach)
+│   ├── CursorRingService.cs   # The cursor ring (Ctrl+Alt+H) and its click ripple
+│   ├── StopwatchService.cs    # Timer with double-tap reset
+│   ├── ConfettiService.cs     # Particle physics confetti
+│   ├── OverlayService.cs      # Win32 click-through toggling, z-order, capture exclusion
+│   ├── PenStateService.cs     # pen.json
+│   ├── CountdownPlaceService.cs # countdown.json: where the thinking timer shows
+│   └── SettingsService.cs     # JSON persistence
+└── Views/
+    ├── OverlayWindow.xaml(.cs)  # Fullscreen transparent overlay (Board + InkCanvas + ShapeCanvas + CountdownHost + ConfettiCanvas); the board's swap
+    ├── CountdownHud.cs          # The thinking timer's ring (F6)
+    ├── ArrowShape.cs            # The arrow's shaft + head layout (tip on the end point, head by thickness)
+    ├── PenInkCanvas.cs          # InkCanvas that ignores touches while the pen is near (IgnoreTouchNearPen)
+    ├── ToolbarWindow.xaml(.cs)  # The light toolbar and its dot; placement; snapshots
+    ├── ToolbarProps.cs          # IsActive, for the button styles
+    ├── Icons.xaml               # Tabler icons as geometries + IconTemplate
+    └── ToastWindow.xaml(.cs)    # Mode indicator popup
+```
+```
+
+### From "DPI"
+
+[lines 388-392]
+```text
+⚠️ **SmoothDraw runs System-DPI-aware, not per-monitor** (read 2026-09-28 on the home PC:
+every one of its windows reports awareness 1 at 96 DPI; SmoothZoom's too). The csproj's
+`ApplicationHighDpiMode` — which the old docs credited with PerMonitorV2 — only feeds
+WinForms' startup code; a WPF app takes its DPI mode from the manifest, and `app.manifest`
+declares none. What that means:
+```
+
+### From "Settings"
+
+[lines 403-408]
+```text
+Stored at `%APPDATA%\SmoothDraw\settings.json`. **Since 2026-10-10 both machines have one,
+written by hand with ONE key: `{"HideToolbarWhenIdle": true}`** (Omri: "I don't want the
+SmoothDraw circle to be visible all the time on the side of my screen"). Every other value
+is still the code default: a missing key keeps its default when the file is read. A file the
+app itself saved would pin every value at the time it was saved — re-check before relying on
+a default. Before that day neither machine had a file.
+```
+
+[lines 415-425]
+```text
+- **No dot = drawing starts from F9**: the pad's small right knob press (davinci-automation
+  CLAUDE.md surface 6), the Start menu / the pen's top button (`--toggle`) or F9 itself. Nothing on
+  the screen's edge brings the bar (since 2026-10-24, "The dot" above).
+  The toolbar shows while drawing, where it was last dragged, and goes away when drawing stops.
+- How it was put there: the laptop through a one-off scheduled task (the MSIX redirect in
+  "Build & Run"), the home PC over SSH; then SmoothDraw stopped and started again by its
+  logon task (`Start-ScheduledTask SmoothDraw`). The setting is read only at start. The log
+  still says `Toolbar closed: dot at (…)` at start; what counts is the toolbar window
+  (`SmoothDraw Toolbar`) being invisible, which it was on the laptop. `IgnoreTouchNearPen` (default true)
+and `PassThroughWindowTitle` — see "Pen and touch" below. The dot's place is NOT a setting:
+`dot-position.json` beside it; nor is what you pick on the toolbar: `pen.json`.
+```
+
+### From "Planned (Tier 1 — not yet built)"
+
+[lines 443-443]
+```text
+(Undo/Redo and the pen size toggle, items 1–2 of this list until 2026-09-28, are built.)
+```
+
+### From "Control from other programs (OBS remote, Start menu, pen button, tests)"
+
+[lines 448-457]
+```text
+**The OBS dashboard's remote drives this app again** (since 2026-10-18; Omri reversed
+2026-09-28's "I want to have a separation between the tools" with "I want it all from there").
+The remote's main screen has a row ◎ ring (`ring toggle`, SmoothZoom's pipe until 2026-10-18) · ✏️ pen · ➡️ arrow ·
+🔴 laser · ↶ undo · 🧹 clear, through OBS-dashboard's `smooth.py` (`tool pen` / `tool arrow` /
+`tool laser`, `tool none` to go back to the mouse, `undo`, `clear`). It works from his phone
+too, over Tailscale. The hotkeys, the dot, the tray, the Start menu and the pad work as before.
+A SmoothDraw from before `tool <name>` answers `unknown command`, which the remote shows as
+"SmoothDraw needs an update". While drawing, SmoothDraw lets clicks through to the remote
+window (`PassThroughWindowTitle`, "Pen and touch"), so its buttons and REC / stop stay
+pressable.
+```
+
+[lines 469-470]
+```text
+SmoothZoom's pipe (`SmoothZoom.control`) went with it on 2026-10-18: the ring's `ring …`
+commands are this pipe's now. Until 2026-09-28 this one was `SmoothAnnotate.control`.
+```
+
+[lines 495-496]
+```text
+- **Measured 2026-09-27:** warm replies take 1–6 ms. The first calls after an app starts
+  took up to ~1 s, so a caller should wait 1.5 s (the removed `smooth.TIMEOUT` did).
+```
+
+### From "Pen and touch (the laptop: HP OmniBook Ultra Flip 14, touch screen + pen)"
+
+[lines 504-542]
+```text
+## Pen and touch (the laptop: HP OmniBook Ultra Flip 14, touch screen + pen)
+- **A finger draws, except while the pen is near** (`IgnoreTouchNearPen`, default true,
+  `Views/PenInkCanvas.cs`). Omri's choice: he draws with his hand too, so don't go back to
+  "only the pen draws" (CHANGELOG). `false` = a finger always draws.
+  - **"Near"** = the pen is in range over the overlay, or was less than 1 s ago (a palm lifts
+    a moment after the pen). The pen is watched on the whole *window*, with
+    `handledEventsToo`: in-range / in-air-move / down / move = here; out-of-range /
+    `StylusLeave` = gone. It isn't watched on the canvas alone, because a shape tool puts
+    ShapeCanvas on top and the pen's events then never reach the canvas. `StylusLeave` counts
+    as gone because over the toolbar the pen's out-of-range event goes to the toolbar.
+  - **Each touch is judged once, at touch-down, and keeps that verdict until lift-off.** A
+    palm stays ignored even if the pen leaves mid-contact, and a finger stroke never breaks
+    off halfway.
+  - **Two places make that call and must agree:**
+    - The routed stylus events: a touch is marked handled, so no stroke is collected.
+    - The `DynamicRenderer`: it draws live ink on WPF's pen thread BEFORE those events.
+      Without its filter a palm would leave a trail that vanishes on lift-off. The pen
+      thread can't query tablets, so the touch digitizers' ids are collected on the UI thread
+      at load. `PenIsNear` reads only plain fields, so the pen thread can ask it too.
+  - Shapes, text and select ignore a mouse-down that came from a touch while the pen is
+    near (`IsFromTouch`). Only the *down* is filtered: moves and ups act only on a shape or
+    drag that a down started, and filtering an up could leave the mouse captured.
+  - Press-and-hold (right-click ring), flicks (a quick stroke would become "back") and tap
+    feedback circles are switched off on the overlay (`Stylus.Set…Enabled`).
+- **Getting out of drawing on the laptop:** Esc or the toolbar's mouse button.
+  Finger taps work on the toolbar thanks to the hit-layer holes (Key Technical Patterns).
+  F9/F11 need Fn there (see the last bullet).
+- **The remote stays clickable while drawing** (`PassThroughWindowTitle`, default
+  "מרכז השליטה של OBS"). The full-screen drawing layer would otherwise cover it, including
+  REC / stop (until 2026-09-28 also its "stop drawing" button). The hit layer has a hole over that window (`PassThroughRect`,
+  re-cut by the 50 ms timer when the remote moves). The same timer also lets mouse clicks
+  through over it (`FindWindow`, looked up once a second), and entering draw mode raises it
+  above the layer. Verified with a real mouse click on the home PC (2026-09-27): ✏️ on the
+  remote switched drawing off through the layer. How: OBS-dashboard CLAUDE.md → "How the row
+  was tested".
+- HP laptops ship with the top row as media keys (F1–F12 need Fn), so on the laptop F9 is
+  most likely **Fn+F9**. Not verified on this one: its BIOS "action keys" setting needs admin
+  to read (2026-09-27). Either way the laptop is meant to be driven from the dot, the
+  Start menu and the pen.
+```
+
+### From "Testing without hands (`tools/touch-test.ps1`)"
+
+[lines 553-555]
+```text
+- **`undo`**: draw → undo (no red) → redo (red) → clear → undo (red) → Ctrl+4 (eraser) +
+  a finger drag along the stroke (no red) → undo (red). The first stroke and the eraser
+  drag are retried (up to 4×): a lost injected touch would otherwise fail every check after it.
+```
+
+[lines 559-595]
+```text
+- 🚨 **Never Notepad as the key target, and never type unless the script's own window is
+  in front** (`Focus-TestWindow` clicks it and checks `GetForegroundWindow`; it gives up
+  rather than type elsewhere). On 2026-09-29 the old `esc` step's `Start-Process notepad`
+  reopened Windows 11 Notepad with **all 53 of Omri's last-session tabs** (9 with unsaved
+  edits); the process it got back was only a launcher, so `Stop-Process` closed nothing;
+  and the keys step then typed into Notepad because its own window never came to the
+  front. The test tab was emptied and closed by hand; Notepad keeps typed text across
+  restarts. Also never bring a window forward with the "hold Alt" trick: a lone Alt tap
+  puts a WinForms window into its menu mode, a modal loop, and the script's `DoEvents`
+  never came back.
+- **Results on the home PC 2026-09-29:** finger, pen-gone, laser, esc, toolbar, undo, redo,
+  clear-undo, erase-undo and keys PASS. **palm and grace FAIL there, for the old
+  SmoothAnnotate (built from the pre-split commit) exactly as for SmoothDraw**: the
+  synthetic pen never registers as near, although this PC does have pen digitizers
+  (`SM_DIGITIZER` 0x8C, "HID-compliant pen"). So those two are judged on the laptop, where
+  all 7 original checks passed on 2026-09-27; the palm code itself only changed its name.
+The script works around each quirk below:
+- **WPF sees neither the injected-touch device nor the synthetic pen until its device list
+  refreshes**, a few seconds after the synthetic pen is created. Until then every injected
+  touch is dropped silently: no ink and no log line, which looks exactly like a bug in the
+  app. The warm-up keeps stroking until one draws.
+- **Ink over existing ink can't be measured** by counting red pixels, so the canvas is
+  cleared before every measured stroke.
+- **Long, fast, diagonal injected strokes were sometimes lost** before reaching WPF. It was
+  never reproducible with short horizontal ones, and the mouse drew everywhere, so this is
+  the injection, not the app. All strokes in the script are short and horizontal.
+- **A palm with no ink isn't proof on its own**: the injected touch can also be dropped
+  upstream. The script says which happened ("the app ignored it" = a new `touch ignored`
+  line).
+- The OBS remote is excluded from screen capture: screenshots never show it, but it is
+  there and it is a hole in the drawing layer. The script keeps strokes clear of it.
+- PowerShell traps hit on the way: `$null` passed to a `string` P/Invoke parameter arrives
+  as `""` (use `[NullString]::Value`). `$r` and `$R` are the same variable. `$home` is
+  PowerShell's own (read-only). An exception on a background .NET thread kills the whole
+  script, results included.
+- Windows PowerShell reads a BOM-less `.ps1` as ANSI: keep the script ASCII (the remote's
+  Hebrew title is built from code points).
+```
+
+### From "Build & Run"
+
+[lines 602-610]
+```text
+# Requires the .NET 8 SDK, 8.0.425 on both machines:
+# - laptop: C:\Program Files\dotnet (winget, 2026-09-27). A shell opened before that
+#   install lacks it on PATH: open a new one.
+#   ⚠️ Check `hostname` first: a Claude desktop session on the home PC (DESKTOP-7HQM8GO) has the
+#   same C:\Users\omrii\Projects\SmoothDraw path. There, C:\Program Files\dotnet is only the
+#   runtime; use E:\tools\dotnet. On 2026-10-24 a session took the home PC for the laptop and
+#   installed into the laptop's folder on its C: (undone the same day).
+# - home PC: portable, E:\tools\dotnet (dotnet-install.ps1 -Version 8.0.425 -NoPath,
+#   2026-09-28; no admin, nothing on the full C:). Not on PATH — see "On the home PC" below.
+```
+
+[lines 618-631]
+```text
+⚠️ **From a Claude Code session in the Claude desktop app, a program you start runs inside
+Claude's MSIX package**, and the files it CREATES under AppData land in
+`%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\…`, visible only to programs in
+the package. Seen 2026-09-28/29: a Debug SmoothDraw started from the session wrote its
+`debug.log` and snapshots there; the session then kept reading that stale copy laid over
+the real `%LOCALAPPDATA%\SmoothDraw`, while the installed app (started by Task Scheduler,
+outside the package) wrote the real one — it looked as if the installed app logged nothing.
+So: judge the installed app, read its real files through a one-off scheduled task (it runs
+outside the package), and delete any `LocalCache\Local\SmoothDraw` a Debug run left.
+Named pipes, processes, E:\ and the Start menu were not redirected.
+The same goes for installing on the laptop: run `install.ps1` through a one-off scheduled
+task, as on 2026-09-29 (smoothzoom CLAUDE.md → Install / update, "From a Claude desktop
+session"). SmoothZoom's laptop settings never reached the real app this way: from 2026-09-27 to
+2026-09-29 they existed only in Claude's hidden copy.
+```
+
+### From "Key Technical Details"
+
+[lines 649-656]
+```text
+## Key Technical Details
+- **Hotkeys:** F-keys + Ctrl+number, Ctrl+Alt+letters while drawing, and Ctrl+Alt+H (the ring) from
+  anywhere. SmoothZoom (Ctrl+Alt+Z zoom, Ctrl+Alt+H) is retired since 2026-10-18; a machine that
+  still runs it would catch Ctrl+Alt+H in both apps (the newer hook first, which keeps the key).
+  ⚠️ **F8 belongs to OBS** (zoom-to-mouse, OBS-dashboard repo; F9 until 2026-10-13, when Omri
+  swapped the two so the zoom sits beside F7 = the camera full / small) — never bind it here. F9 is
+  passed on to other programs, so a key shared with another app fires both at once. F7 is the
+  OBS dashboard's too. F5 and F6 are this app's from any program since 2026-10-18 (kept from them).
+```
+
+### From "Install / update (laptop + home PC)"
+
+[lines 659-661]
+```text
+Its own install, fully apart from SmoothZoom's (Omri: "a separation between the tools"):
+its own folder, logon task and Start-menu entry. The build is self-contained — no .NET
+needed on the target. Both machines can build and install their own copy in place.
+```
+
+[lines 699-740]
+```text
+  picked for the pen's top button. English name: WScript.Shell reads Hebrew-named `.lnk`
+  files as empty. ⚠️ A pin or pen button that pointed at SmoothAnnotate's old entry
+  ("Draw - SmoothAnnotate", removed by smoothzoom's installer) must be re-picked.
+- Ends by printing `running: SmoothDraw (pid …)`. After that, `debug.log` should say
+  `Toolbar: hidden from screen capture`, and on a machine coming from SmoothAnnotate,
+  `Carried over …` and/or `Stopped the old SmoothAnnotate`.
+- **Installed on the home PC 2026-09-29 15:05** (build of 79948af): `running: SmoothDraw`,
+  at Normal priority; the real log said `Carried over dot-position.json …` and `Dot position
+  converted from WPF units (10,975) to pixels (0,965)`, so the dot came up on its old spot
+  (bottom-left); task "SmoothDraw" at logon with priority 4; the Start-menu entry switched
+  drawing on and off. Then smoothzoom's cleanup removed `E:\apps\SmoothTools\SmoothAnnotate`
+  and "Draw - SmoothAnnotate".
+- **Installed on the laptop 2026-09-29 18:44** (build of 1092023), through a one-off
+  scheduled task (Build & Run above): `running: SmoothDraw`, Normal priority, no
+  CodeIntegrity 3077; the log said `Toolbar: hidden from screen capture`. Nothing was
+  carried over: the laptop had no `%APPDATA%\SmoothAnnotate` (it ran on defaults), so the
+  dot started top-centre. Then smoothzoom's install removed SmoothAnnotate's folder and
+  "Draw - SmoothAnnotate".
+- **Order on a machine that has SmoothAnnotate:** install SmoothDraw first and check it
+  (running, the log lines above, the old dot place), and only then install smoothzoom's
+  cleanup, which deletes the old `SmoothAnnotate\` folder and its Start-menu entry. If
+  SmoothDraw is blocked (below), start the old SmoothAnnotate again and remove the task
+  `SmoothDraw`: nothing is lost, its settings were only copied.
+- 🚨 **The laptop had Smart App Control ON** (OFF since 2026-10-27; read 2026-09-29 ~18:40: `Get-MpComputerStatus` →
+  `SmartAppControlState: On`; the home PC is Off. Omri was given the steps to turn it off
+  himself, since it's a security setting; re-read it before relying on this line). SAC blocks
+  unsigned programs it has no good cloud verdict for. **Every new build is judged again, and
+  the verdict varies** — a build can be blocked and the next one let through (CHANGELOG). So
+  after any update, check that the app is running on the laptop. Last seen: the build of 64764ef was blocked (3077, 2026-10-27 19:51); Omri then turned SAC
+  **OFF** on the laptop (20:49, `SmartAppControlState: Off`; it cannot be turned back on without
+  resetting Windows), and the same build installed and ran at 20:50. A block is CodeIntegrity
+  event 3077, "did not meet the Enterprise signing level requirements". (Launched by the old
+  `start.vbs`, the block showed up as a "Windows Script Host" error box.) The check: `Get-WinEvent -LogName
+  'Microsoft-Windows-CodeIntegrity/Operational'`, event 3077 naming the exe. Never try to
+  get around SAC. The only ways forward are Omri turning it off, or a real code-signing
+  certificate. `SmoothDraw.exe` is a new name, so it gets a verdict of its own.
+- ⚠️ **A NEW build can start late, once — which is NOT a block.** On its first run an unknown
+  unsigned exe is held for a cloud check (Defender cloud-protection events 2010 at that
+  moment): it starts 20 s–2 min late, and the install prints `NOT running yet`. Tell the two
+  apart before waiting: a **block** is a CodeIntegrity 3077 naming the exe (above), and
+  waiting never ends it. No 3077 = wait and check again. During the hold the file also reads
+  as "in use", so an install run straight after another can fail its copy; re-run it.
+```
