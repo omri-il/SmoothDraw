@@ -832,8 +832,7 @@ public partial class OverlayWindow : Window
 
     private void RepositionToCurrentMonitor()
     {
-        Native.User32.GetCursorPos(out var pt);
-        var hMonitor = Native.User32.MonitorFromPoint(pt, Native.User32.MONITOR_DEFAULTTONEAREST);
+        var hMonitor = DrawingMonitor();
 
         var mi = new Native.User32.MONITORINFO();
         mi.cbSize = System.Runtime.InteropServices.Marshal.SizeOf(mi);
@@ -853,6 +852,40 @@ public partial class OverlayWindow : Window
                 (mi.rcWork.Left - mi.rcMonitor.Left) * dpiX, (mi.rcWork.Top - mi.rcMonitor.Top) * dpiY,
                 (mi.rcMonitor.Right - mi.rcWork.Right) * dpiX, (mi.rcMonitor.Bottom - mi.rcWork.Bottom) * dpiY);
         }
+    }
+
+    /// <summary>The screen the overlay goes to: the cursor's, except when the cursor is on the
+    /// OBS remote's screen. A press on the remote (pen, arrow, laser, ⏳) leaves the cursor
+    /// there, and that screen is not recorded (Omri, 2026-11-19: "the laser only marks the
+    /// screen I am on, the one I don't record"). Then: the main screen, else any other one.
+    /// One screen (the laptop), or no remote open = the cursor's screen, as before.</summary>
+    private IntPtr DrawingMonitor()
+    {
+        Native.User32.GetCursorPos(out var pt);
+        var cursor = Native.User32.MonitorFromPoint(pt, Native.User32.MONITOR_DEFAULTTONEAREST);
+        var remote = PassThroughMonitor();
+        if (remote == IntPtr.Zero || remote != cursor) return cursor;
+        var main = Native.User32.MonitorFromPoint(new Native.User32.POINT(), Native.User32.MONITOR_DEFAULTTOPRIMARY);
+        var other = main != remote ? main : IntPtr.Zero;
+        if (other == IntPtr.Zero)
+            Native.User32.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr h, IntPtr _, ref Native.User32.RECT _, IntPtr _) =>
+            {
+                if (h != remote) { other = h; return false; }
+                return true;
+            }, IntPtr.Zero);
+        if (other == IntPtr.Zero) return cursor;   // one screen: nowhere else to go
+        App.Log("Overlay: the cursor is on the remote's screen, so the other screen");
+        return other;
+    }
+
+    /// <summary>The screen the OBS remote is on, or zero while it is closed or minimized.</summary>
+    private IntPtr PassThroughMonitor()
+    {
+        var hwnd = PassThroughWindow();
+        if (hwnd == IntPtr.Zero || !Native.User32.IsWindowVisible(hwnd) || Native.User32.IsIconic(hwnd)
+            || !Native.User32.GetWindowRect(hwnd, out var r))
+            return IntPtr.Zero;
+        return Native.User32.MonitorFromRect(ref r, Native.User32.MONITOR_DEFAULTTONEAREST);
     }
 
     // The pass-through window (the OBS dashboard's remote), looked up by title at most

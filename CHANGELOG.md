@@ -6,6 +6,15 @@ them. Newest first. Git history has the full detail. Everything before 2026-09-2
 in the smoothzoom repo, where this app was SmoothAnnotate next to SmoothZoom, so those
 entries cover both apps.
 
+## 2026-11-19 — a press on the OBS remote draws on the recorded screen
+- Omri: on the home PC the remote sits on the left screen, which is not recorded. A press on the
+  laser (or pen, arrow, ⏳) left the cursor there, so the overlay opened on that screen.
+- `DrawingMonitor`: when the cursor is on the remote's screen, the overlay goes to the main screen
+  (else any other one). One screen (the laptop), or the remote closed or minimized: as before.
+- Checked on the home PC: cursor on the remote, `tool laser` → overlay (0,0)-(1920,1080), the main
+  screen; log `Overlay: the cursor is on the remote's screen, so the other screen`. Installed there;
+  the old exe is kept in `E:pps\SmoothDraw-backup-2026-11-19`. The laptop (one screen) needs no update.
+
 ## 2026-10-28 — the thinking timer's place from the OBS remote, and it follows the take
 - Omri, in the OBS-dashboard session: pick WHERE the timer shows from the remote's ⚙️, and make it
   smart: when the take is paused the timer pauses and goes on with it; when the take is restarted

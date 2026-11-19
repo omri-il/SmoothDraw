@@ -248,7 +248,9 @@ Ctrl+Shift+Z (while drawing), pipe `undo` / `redo`.
   drawing ends there). `MinimalButton_Click` runs `DragMove()`: moved more than 4 px = a drag (place
   saved), else a click (pen). `Bar_MouseLeftButtonDown` works the same way.
 - **Single-monitor overlay:** `MonitorFromPoint` + `GetMonitorInfo` puts the overlay on the cursor's
-  monitor when drawing starts.
+  monitor when drawing starts. **Except on the OBS remote's screen** (`DrawingMonitor`, 2026-11-19): a press
+  on the remote leaves the cursor there, and that screen is not recorded, so the overlay goes to the
+  main screen (else any other one). One screen, or the remote closed or minimized = the cursor's.
 - **WS_EX_NOACTIVATE** on the overlay so the toolbar keeps focus.
 - **Arrow pairing:** `_arrowPairs` maps Line↔Polygon so Select moves both.
 - **Delegate pinning:** hook delegates are class fields so the GC never collects them.
